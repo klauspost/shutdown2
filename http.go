@@ -12,12 +12,13 @@ import (
 // shutdown has been initiated.
 func WrapHandler(h http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if !Lock() {
+		l := Lock()
+		if l == nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		// We defer, so panics will not keep a lock
-		defer Unlock()
+		defer l()
 		h.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
@@ -29,12 +30,13 @@ func WrapHandler(h http.Handler) http.Handler {
 // shutdown has been initiated.
 func WrapHandlerFunc(h http.HandlerFunc) http.HandlerFunc {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if !Lock() {
+		l := Lock()
+		if l == nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		// We defer, so panics will not keep a lock
-		defer Unlock()
+		defer l()
 		h(w, r)
 	}
 	return http.HandlerFunc(fn)

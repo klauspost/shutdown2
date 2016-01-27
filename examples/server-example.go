@@ -31,8 +31,9 @@ import (
 // A Sample Webserver
 func HelloServer(w http.ResponseWriter, req *http.Request) {
 	// Tracks all running requests
-	if shutdown.Lock() {
-		defer shutdown.Unlock()
+	l := shutdown.Lock()
+	if l != nil {
+		defer l()
 	} else {
 		// Shutdown has started, return that the service is unavailable
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -69,7 +70,7 @@ func main() {
 
 	// Start a webserver
 	http.HandleFunc("/", HelloServer)
-	fmt.Println("Starting server. Press Ctrl+c to initiate shutdown")
+	fmt.Println("Starting server. Press Ctrl+c to initiate shutdown,\nor go to http://localhost:8080/?shutdown=true")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 

@@ -15,6 +15,8 @@ import (
 	"os/signal"
 	"sync"
 	"time"
+	"runtime"
+	"fmt"
 )
 
 // Stage contains stage information.
@@ -327,28 +329,54 @@ func Wait() {
 	<-shutdownFinished
 }
 
+// LogLockTimeouts can be disabled to disable log timeout warnings.
+var LogLockTimeouts = true
+
+
 // Lock will signal that you have a function running,
 // that you do not want to be interrupted by a shutdown.
 //
-// If the function returns false shutdown has already been initiated,
-// and you did not get a lock. You should therefore not call Unlock.
+// The lock is created with a timeout equal to the length of the
+// preshutdown stage at the time of creation. When that amount of
+// time has expired the lock will be removed, and a warning will
+// be printed.
 //
-// If the function returned true, you must call Unlock() once to release the lock.
+// If the function returns nil shutdown has already been initiated,
+// and you did not get a lock. You should therefore not call the returned
+// function.
+//
+// If the function did not return nil, you should call the function to unlock
+// the lock.
 //
 // You should not hold a lock when you start a shutdown.
-func Lock() bool {
+func Lock() func() {
 	srM.RLock()
 	s := shutdownRequested
-	if !s {
-		wg.Add(1)
+	if s {
+		srM.RUnlock()
+		return nil
 	}
+	wg.Add(1)
 	srM.RUnlock()
-	return !s
+	var release = make(chan struct{}, 0)
+	var timeout = time.After(timeouts[0])
+
+	// Store what called this
+	var calledFrom string
+	if LogLockTimeouts {
+		_, file, line, _ := runtime.Caller(1)
+		calledFrom = fmt.Sprintf("%s:%d", file, line)
+	}
+	go func() {
+		select {
+		case <-timeout:
+		if LogLockTimeouts {
+			Logger.Printf("warning: lock expired. Called from %s\n", calledFrom)
+		}
+		case <-release:
+		}
+		wg.Done()
+	}()
+	return func() { close(release) }
 }
 
-// Unlock will release a shutdown lock.
-// This may only be called if you have previously called Lock and it has
-// returned true
-func Unlock() {
-	wg.Done()
-}

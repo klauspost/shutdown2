@@ -75,12 +75,12 @@ func TestPreShutdown(t *testing.T) {
 	defer close(startTimer(t))
 	f := PreShutdown()
 	ok := false
-	Lock()
+	l := Lock()
 	go func() {
 		select {
 		case n := <-f:
 			ok = true
-			Unlock()
+			l()
 			close(n)
 		}
 	}()
@@ -250,10 +250,10 @@ func TestLock(t *testing.T) {
 		}
 	}()
 	got := Lock()
-	if !got {
+	if got == nil {
 		t.Fatal("Unable to aquire lock")
 	}
-	Unlock()
+	got()
 
 	// Start 10 goroutines that aquire a lock.
 	var wg1, wg2 sync.WaitGroup
@@ -263,9 +263,10 @@ func TestLock(t *testing.T) {
 		go func() {
 			defer wg1.Done()
 			wg2.Done() // Signal we are ready to take the lock
-			if Lock() {
-				time.Sleep(time.Second)
-				Unlock()
+			l := Lock()
+			if l != nil {
+				time.Sleep(timeouts[0] / 2)
+				l()
 			}
 		}()
 	}
@@ -286,7 +287,7 @@ func TestLockUnrelease(t *testing.T) {
 	defer close(startTimer(t))
 	SetTimeout(time.Millisecond * 100)
 	got := Lock()
-	if !got {
+	if got == nil {
 		t.Fatal("Unable to aquire lock")
 	}
 	tn := time.Now()
@@ -298,8 +299,6 @@ func TestLockUnrelease(t *testing.T) {
 	if !Started() {
 		t.Fatal("expected that shutdown had started")
 	}
-	// Unlock to be nice
-	Unlock()
 }
 
 func TestOrder(t *testing.T) {
@@ -682,8 +681,9 @@ func Example_functions() {
 func ExampleLock() {
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		// Get a lock while we have the lock, the server will not shut down.
-		if Lock() {
-			defer Unlock()
+		lock := Lock()
+		if lock != nil  {
+			defer lock()
 		} else {
 			// We are currently shutting down, return http.StatusServiceUnavailable
 			w.WriteHeader(http.StatusServiceUnavailable)

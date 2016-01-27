@@ -31,9 +31,10 @@ func main() {
 
 	// Start a webserver
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		if shutdown.Lock() {
+		l := shutdown.Lock()
+		if l != nil {
 			logStream <- req.URL.String() + "\n"
-			shutdown.Unlock()
+			l()
 		} else {
 			log.Println("Already shutting down")
 		}
