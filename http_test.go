@@ -229,6 +229,7 @@ func TestWrapHandlerOrder(t *testing.T) {
 	// We should make sure the release has run before exiting
 	<-testOK
 
+	time.Sleep(time.Millisecond * 50)
 	select {
 	case <-finished:
 	default:
