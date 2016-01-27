@@ -17,19 +17,29 @@ import (
 	"time"
 )
 
-// Valid values for this is exported as variables.
+// Stage contains stage information.
+// Valid values for this is exported as variables StageN.
 type Stage struct {
 	n int
 }
 
-// Logger used for output.
-// This can be exchanged with your own.
-var Logger = log.New(os.Stderr, "[shutdown]: ", log.LstdFlags)
+var (
+	// Logger used for output.
+	// This can be exchanged with your own.
+	Logger = log.New(os.Stderr, "[shutdown]: ", log.LstdFlags)
 
-var Preshutdown = Stage{0} // Indicates stage when waiting for locks to be released.
-var Stage1 = Stage{1}      // Indicates first stage of timeouts.
-var Stage2 = Stage{2}      // Indicates second stage of timeouts.
-var Stage3 = Stage{3}      // Indicates third stage of timeouts.
+	// StagePS indicates the pre shutdown stage when waiting for locks to be released.
+	StagePS = Stage{0}
+
+	// Stage1 Indicates first stage of timeouts.
+	Stage1 = Stage{1}
+
+	// Stage2 Indicates second stage of timeouts.
+	Stage2 = Stage{2}
+
+	// Stage3 indicates third stage of timeouts.
+	Stage3 = Stage{3}
+)
 
 // Notifier is a channel, that will be sent a channel
 // once the application shuts down.
@@ -119,7 +129,7 @@ func PreShutdown() Notifier {
 	return onShutdown(0)
 }
 
-// PreShutdownFunc registers a function that will be called as soon as the shutdown
+// PreShutdownFn registers a function that will be called as soon as the shutdown
 // is signalled, before locks are released.
 // This allows to for instance send signals to upstream servers not to send more requests.
 func PreShutdownFn(fn func()) Notifier {
@@ -131,7 +141,7 @@ func First() Notifier {
 	return onShutdown(1)
 }
 
-// FirstFunc executes a function in the first stage of the shutdown
+// FirstFn executes a function in the first stage of the shutdown
 func FirstFn(fn func()) Notifier {
 	return onFunc(1, fn)
 }
@@ -141,7 +151,7 @@ func Second() Notifier {
 	return onShutdown(2)
 }
 
-// SecondFunc executes a function in the second stage of the shutdown
+// SecondFn executes a function in the second stage of the shutdown
 func SecondFn(fn func()) Notifier {
 	return onFunc(2, fn)
 }
@@ -151,7 +161,7 @@ func Third() Notifier {
 	return onShutdown(3)
 }
 
-// ThirdFunc executes a function in the third stage of the shutdown
+// ThirdFn executes a function in the third stage of the shutdown
 // The returned Notifier is only really useful for cancelling the shutdown function
 func ThirdFn(fn func()) Notifier {
 	return onFunc(3, fn)

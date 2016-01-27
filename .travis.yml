@@ -1,2 +1,30 @@
 language: go
 
+sudo: false
+
+os:
+  - linux
+  - osx
+
+go:
+  - 1.3
+  - 1.4
+  - 1.5
+  - tip
+
+
+install:
+ - go get ./...
+ - go get -u github.com/golang/lint/golint
+ - go get -u golang.org/x/tools/cmd/goimports
+
+script: 
+ - go vet ./...
+ - diff <(goimports -d .) <("")
+ - diff <(golint ./...) <("")  
+ - go test -v -cpu=1,2,4 .
+ - go test -v -cpu=1,2,4 -short -race .
+ - go build examples/server-channel.go
+ - go build examples/server-example.go
+ - go build examples/simple-func.go
+ 

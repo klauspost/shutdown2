@@ -23,7 +23,7 @@ import (
 // To modify the timeout use SetTimeoutN(Preshutdown, duration)
 func ExampleWrapHandlerFunc() {
 	// Set a custom timeout, if the 5 second default doesn't fit your needs.
-	SetTimeoutN(Preshutdown, time.Second*30)
+	SetTimeoutN(StagePS, time.Second*30)
 	// Catch OS signals
 	OnSignal(0, os.Interrupt, syscall.SIGTERM)
 
@@ -48,7 +48,7 @@ func ExampleWrapHandlerFunc() {
 // To modify the timeout use SetTimeoutN(Preshutdown, duration)
 func ExampleWrapHandler() {
 	// Set a custom timeout, if the 5 second default doesn't fit your needs.
-	SetTimeoutN(Preshutdown, time.Second*30)
+	SetTimeoutN(StagePS, time.Second*30)
 	// Catch OS signals
 	OnSignal(0, os.Interrupt, syscall.SIGTERM)
 

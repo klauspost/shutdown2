@@ -37,7 +37,6 @@ func startTimer(t *testing.T) chan struct{} {
 		select {
 		case <-toc:
 			panic("unexpected timeout while running test")
-			return
 		case <-finished:
 			return
 
