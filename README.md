@@ -103,16 +103,20 @@ A simple example can be seen in this http handler:
 ```Go
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		// Acquire a lock.
+		l := shutdown.Lock()
 		// While this is held server will not shut down (except after timeout)
-		if !shutdown.Lock() {
+		if lock == nil {
 			// Shutdown has started, return that the service is unavailable
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
-		defer shutdown.Unlock()
+		// Defer unlocking the lock.
+		defer l()
 		io.WriteString(w, "Server running")
 	})
 ```
-If shutdown is started, either by a signal or by another goroutine, it will wait until the lock is released. It is important always to release the lock, if shutdown.Lock() returns true. Otherwise the server will have to wait until the timeout has passed before it starts shutting down, which may not be what you want.
+If shutdown is started, either by a signal or by another goroutine, it will wait until the lock is released. It is important always to release the lock, if shutdown.Lock() returns a non-nil value. Otherwise the server will have to wait until the timeout has passed before it starts shutting down, which may not be what you want.
+
+Each lock keeps track of its own creation time and will warn you if any lock exceeds the deadline time set for the pre-shutdown stage. This will help you identify issues that may be with your code, where it takes longer to complete than the allowed time, or you have forgotten to unlock any aquired lock.
 
 Finally you can call `shutdown.Exit(exitcode)` to call all exit handlers and exit your application. This will wait for all locks to be released and notify all shutdown handlers and exit with the given exit code. If you want to do the exit yourself you can call the `shutdown.Shutdown()`, which does the same, but doesn't exit. Beware that you don't hold a lock when you call Exit/Shutdown.
 
