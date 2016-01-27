@@ -254,14 +254,23 @@ func TestLock(t *testing.T) {
 		t.Fatal("Unable to aquire lock")
 	}
 	Unlock()
+
+	// Start 10 goroutines that aquire a lock.
+	var wg1, wg2 sync.WaitGroup
+	wg1.Add(10)
+	wg2.Add(10)
 	for i := 0; i < 10; i++ {
 		go func() {
+			defer wg1.Done()
+			wg2.Done() // Signal we are ready to take the lock
 			if Lock() {
 				time.Sleep(time.Second)
 				Unlock()
 			}
 		}()
 	}
+	// Wait for all goroutines to have aquired the lock
+	wg2.Wait()
 	Shutdown()
 	if !ok {
 		t.Fatal("shutdown signal not received")
@@ -269,6 +278,7 @@ func TestLock(t *testing.T) {
 	if !Started() {
 		t.Fatal("expected that shutdown had started")
 	}
+	wg1.Wait()
 }
 
 func TestLockUnrelease(t *testing.T) {
