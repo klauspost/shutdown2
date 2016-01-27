@@ -17,7 +17,6 @@ func reset() {
 	srM.Lock()
 	defer srM.Unlock()
 	shutdownRequested = false
-	wg = &sync.WaitGroup{}
 	shutdownQueue = [4][]Notifier{}
 	shutdownFnQueue = [4][]fnNotify{}
 	shutdownFinished = make(chan struct{})
