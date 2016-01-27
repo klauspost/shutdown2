@@ -658,7 +658,7 @@ func ExampleNotifier() {
 }
 
 // Get a notifier and perform our own function when we shutdown
-func ExampleShutdownFn() {
+func Example_functions() {
 	_ = FirstFn(func() {
 		// This function is called on shutdown
 		fmt.Println("First shutdown stage called")

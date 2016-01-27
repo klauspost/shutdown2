@@ -20,8 +20,8 @@ install:
 
 script: 
  - go vet ./...
- - diff <(goimports -d .) <("")
- - diff <(golint ./...) <("")  
+ - diff <(goimports -d .) <(printf "")
+ - diff <(golint ./...) <(printf "")
  - go test -v -cpu=1,2,4 .
  - go test -v -cpu=1,2,4 -short -race .
  - go build examples/server-channel.go
