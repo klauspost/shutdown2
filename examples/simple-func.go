@@ -44,9 +44,10 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		// Get a lock, and write to the file if we get it.
 		// While we have the lock the file will not be closed.
-		if shutdown.Lock() {
+		l := shutdown.Lock()
+		if l != nil {
 			_, _ = logFile.WriteString(req.URL.String() + "\n")
-			shutdown.Unlock()
+			l()
 		}
 	})
 
