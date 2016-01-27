@@ -54,6 +54,7 @@ type fnNotify struct {
 	cancel   chan struct{}
 }
 
+//TODO(klauspost): These should be added to a struct for easier testing.
 var sqM sync.Mutex // Mutex for below
 var shutdownQueue [4][]Notifier
 var shutdownFnQueue [4][]fnNotify
@@ -243,14 +244,12 @@ func Shutdown() {
 		return
 	}
 	shutdownRequested = true
+	lwg := wg
 	srM.Unlock()
 
 	// Add a pre-shutdown function that waits for all locks to be released.
 	PreShutdownFn(func() {
-		srM.Lock()
-		wait := wg
-		srM.Unlock()
-		wait.Wait()
+		lwg.Wait()
 	})
 
 	sqM.Lock()
@@ -315,11 +314,7 @@ func Started() bool {
 	return started
 }
 
-var wg *sync.WaitGroup
-
-func init() {
-	wg = &sync.WaitGroup{}
-}
+var wg = &sync.WaitGroup{}
 
 // Wait will wait until shutdown has finished.
 // This can be used to keep a main function from exiting
@@ -350,8 +345,7 @@ var LogLockTimeouts = true
 // You should not hold a lock when you start a shutdown.
 func Lock() func() {
 	srM.RLock()
-	s := shutdownRequested
-	if s {
+	if shutdownRequested {
 		srM.RUnlock()
 		return nil
 	}
@@ -366,7 +360,7 @@ func Lock() func() {
 		_, file, line, _ := runtime.Caller(1)
 		calledFrom = fmt.Sprintf("%s:%d", file, line)
 	}
-	go func() {
+	go func(wg *sync.WaitGroup) {
 		select {
 		case <-timeout:
 			if LogLockTimeouts {
@@ -375,6 +369,6 @@ func Lock() func() {
 		case <-release:
 		}
 		wg.Done()
-	}()
+	}(wg)
 	return func() { close(release) }
 }
