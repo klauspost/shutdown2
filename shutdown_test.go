@@ -682,7 +682,7 @@ func ExampleLock() {
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		// Get a lock while we have the lock, the server will not shut down.
 		lock := Lock()
-		if lock != nil  {
+		if lock != nil {
 			defer lock()
 		} else {
 			// We are currently shutting down, return http.StatusServiceUnavailable

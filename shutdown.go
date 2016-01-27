@@ -10,13 +10,13 @@
 package shutdown
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"time"
-	"runtime"
-	"fmt"
 )
 
 // Stage contains stage information.
@@ -332,7 +332,6 @@ func Wait() {
 // LogLockTimeouts can be disabled to disable log timeout warnings.
 var LogLockTimeouts = true
 
-
 // Lock will signal that you have a function running,
 // that you do not want to be interrupted by a shutdown.
 //
@@ -370,13 +369,12 @@ func Lock() func() {
 	go func() {
 		select {
 		case <-timeout:
-		if LogLockTimeouts {
-			Logger.Printf("warning: lock expired. Called from %s\n", calledFrom)
-		}
+			if LogLockTimeouts {
+				Logger.Printf("warning: lock expired. Called from %s\n", calledFrom)
+			}
 		case <-release:
 		}
 		wg.Done()
 	}()
 	return func() { close(release) }
 }
-
