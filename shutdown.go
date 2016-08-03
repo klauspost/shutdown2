@@ -25,10 +25,16 @@ type Stage struct {
 	n int
 }
 
+// LogPrinter is an interface for writing logging information.
+// The writer must handle concurrent writes.
+type LogPrinter interface {
+	Printf(format string, v ...interface{})
+}
+
 var (
 	// Logger used for output.
 	// This can be exchanged with your own.
-	Logger = log.New(os.Stderr, "[shutdown]: ", log.LstdFlags)
+	Logger LogPrinter = log.New(os.Stderr, "[shutdown]: ", log.LstdFlags)
 
 	// StagePS indicates the pre shutdown stage when waiting for locks to be released.
 	StagePS = Stage{0}
@@ -52,6 +58,20 @@ type fnNotify struct {
 	client   Notifier
 	internal Notifier
 	cancel   chan struct{}
+}
+
+type logWrapper struct {
+	w func(format string, v ...interface{})
+}
+
+func (l logWrapper) Printf(format string, v ...interface{}) {
+	l.w(format, v)
+}
+
+// SetLogPrinter will use the specified function to write logging information.
+// The writer must handle concurrent writes.
+func SetLogPrinter(fn func(format string, v ...interface{})) {
+	Logger = logWrapper{w: fn}
 }
 
 //TODO(klauspost): These should be added to a struct for easier testing.
@@ -237,7 +257,7 @@ func onFunc(prio int, fn func()) Notifier {
 			{
 				defer func() {
 					if r := recover(); r != nil {
-						Logger.Println("Panic in shutdown function:", r)
+						Logger.Printf("Error: Panic in shutdown function: %v", r)
 					}
 					if c != nil {
 						close(c)
@@ -315,9 +335,9 @@ func Shutdown() {
 			continue
 		}
 		if stage == 0 {
-			Logger.Println("Initiating shutdown")
+			Logger.Printf("Initiating shutdown")
 		} else {
-			Logger.Println("Shutdown stage", stage)
+			Logger.Printf("Shutdown stage %v", stage)
 		}
 		wait := make([]chan struct{}, len(queue))
 
@@ -344,7 +364,7 @@ func Shutdown() {
 			select {
 			case <-wait[i]:
 			case <-timeout:
-				Logger.Println("timeout waiting to shutdown, forcing shutdown")
+				Logger.Printf("timeout waiting to shutdown, forcing shutdown")
 				break brwait
 			}
 		}
