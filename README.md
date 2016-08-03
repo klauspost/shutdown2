@@ -97,6 +97,23 @@ If you for some reason don't need a notifier anymore you can cancel it. When a n
 ```
 Functions are cancelled the same way by cancelling the returned notifier. Be aware that if shutdown has been initiated you can no longer cancel notifiers, so you may need to aquire a shutdown lock (see below).
 
+If you want to Cancel a notifier, but shutdown may have started, you can use the CancelWait function. It will cancel a Notifier, or wait for it to become active if shutdown has been started.
+ 
+```Go
+  go func() {
+    // Get a stage 1 notification
+    finish := shutdown.First()
+    select {
+      case n:= <-finish:
+        close(n)
+        return
+      case <-otherchan:
+        // Cancel the finish notifier, or wait until Stage 1 is complete.
+        finish.CancelWait() 
+        return
+  }
+```
+
 The final thing you can do is to lock shutdown in parts of your code you do not want to be interrupted by a shutdown, or if the code relies on resources that are destroyed as part of the shutdown process.
 
 A simple example can be seen in this http handler:

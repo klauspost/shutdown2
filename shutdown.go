@@ -91,6 +91,11 @@ func (s *Notifier) Cancel() {
 	srM.RLock()
 	if shutdownRequested {
 		srM.RUnlock()
+		// Wait until we get the notification and close it:
+		select {
+		case v := <-*s:
+			close(v)
+		}
 		return
 	}
 	srM.RUnlock()
@@ -122,6 +127,53 @@ func (s *Notifier) Cancel() {
 			}
 		}
 	}
+	sqM.Unlock()
+}
+
+// CancelWait will cancel a Notifier, or wait for it to become active if shutdown has been started.
+// This will remove a notifier from the shutdown queue, and it will not be signalled when shutdown starts.
+// If the shutdown has already started, this will wait for the notifier to be called and close it.
+func (s *Notifier) CancelWait() {
+	sqM.Lock()
+	var a chan chan struct{}
+	var b chan chan struct{}
+	a = *s
+	for n, sdq := range shutdownQueue {
+		for i, qi := range sdq {
+			b = qi
+			if a == b {
+				shutdownQueue[n] = append(shutdownQueue[n][:i], shutdownQueue[n][i+1:]...)
+			}
+		}
+		for i, fn := range shutdownFnQueue[n] {
+			b = fn.client
+			if a == b {
+				// Find the matching internal and remove that.
+				for i := range shutdownQueue[n] {
+					b = shutdownQueue[n][i]
+					if fn.internal == b {
+						shutdownQueue[n] = append(shutdownQueue[n][:i], shutdownQueue[n][i+1:]...)
+					}
+				}
+				// Cancel, so the goroutine exits.
+				close(fn.cancel)
+				// Remove this
+				shutdownFnQueue[n] = append(shutdownFnQueue[n][:i], shutdownFnQueue[n][i+1:]...)
+			}
+		}
+	}
+	srM.RLock()
+	if shutdownRequested {
+		sqM.Unlock()
+		srM.RUnlock()
+		// Wait until we get the notification and close it:
+		select {
+		case v := <-*s:
+			close(v)
+		}
+		return
+	}
+	srM.RUnlock()
 	sqM.Unlock()
 }
 

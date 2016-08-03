@@ -149,6 +149,168 @@ func TestCancel2(t *testing.T) {
 	}
 }
 
+func TestCancelWait(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	f := First()
+	ok := false
+	go func() {
+		select {
+		case n := <-f:
+			ok = true
+			close(n)
+		}
+	}()
+	f.CancelWait()
+	Shutdown()
+	if ok {
+		t.Fatal("got unexpected shutdown signal")
+	}
+}
+
+func TestCancelWait2(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	f2 := First()
+	f := First()
+	var ok, ok2 bool
+
+	go func() {
+		select {
+		case n := <-f:
+			ok = true
+			close(n)
+		}
+	}()
+	go func() {
+		select {
+		case n := <-f2:
+			ok2 = true
+			close(n)
+		}
+	}()
+	f.CancelWait()
+	Shutdown()
+	if ok {
+		t.Fatal("got unexpected shutdown signal")
+	}
+	if !ok2 {
+		t.Fatal("missing shutdown signal")
+	}
+}
+
+// TestCancelWait3 assert that we can CancelWait, and that wait will wait until the
+// specified stage.
+func TestCancelWait3(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	f := First()
+	var ok, ok2, ok3 bool
+	f2 := Second()
+	cancelled := make(chan struct{}, 0)
+	reached := make(chan struct{}, 0)
+	p2started := make(chan struct{}, 0)
+	_ = SecondFn(func(){
+		<-p2started
+		close(reached)
+	})
+	var wg sync.WaitGroup
+	go func() {
+		select {
+		case v := <-f2:
+			ok3 = true
+			close(v)
+		case <-cancelled:
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		select {
+		case n := <-f:
+			ok = true
+			go func() {
+				wg.Done()
+				close(cancelled)
+				f2.CancelWait()
+				// We should be at stage 2
+				close(p2started)
+				<-reached
+			}()
+			wg.Wait()
+			time.Sleep(10 * time.Millisecond)
+			close(n)
+		}
+
+	}()
+	Shutdown()
+	if !ok {
+		t.Fatal("missing shutdown signal")
+	}
+	if ok2 {
+		t.Fatal("got unexpected shutdown signal")
+	}
+	if ok3 {
+		t.Fatal("got unexpected shutdown signal")
+	}
+}
+
+// TestCancelWait4 assert that we can CancelWait on a previous stage,
+// and it doesn't block.
+func TestCancelWait4(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	f := Second()
+	var ok bool
+	f2 := First()
+	go func() {
+		select {
+		case n := <-f:
+			// Should not wait
+			f2.CancelWait()
+			ok = true
+			close(n)
+		}
+
+	}()
+	Shutdown()
+	if !ok {
+		t.Fatal("missing shutdown signal")
+	}
+}
+
+func TestFnCancelWait(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	f := First()
+	var ok, ok2 bool
+	f2 := SecondFn(func() {
+		ok2 = true
+	})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		select {
+		case n := <-f:
+			ok = true
+			go func() {
+				wg.Done()
+				f2.CancelWait()
+			}()
+			wg.Wait()
+			time.Sleep(10 * time.Millisecond)
+			close(n)
+		}
+
+	}()
+	Shutdown()
+	if !ok {
+		t.Fatal("missing shutdown signal")
+	}
+	if ok2 {
+		t.Fatal("got unexpected shutdown signal")
+	}
+}
+
 func TestWait(t *testing.T) {
 	reset()
 	defer close(startTimer(t))
