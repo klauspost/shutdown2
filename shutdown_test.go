@@ -210,7 +210,7 @@ func TestCancelWait3(t *testing.T) {
 	cancelled := make(chan struct{}, 0)
 	reached := make(chan struct{}, 0)
 	p2started := make(chan struct{}, 0)
-	_ = SecondFn(func(){
+	_ = SecondFn(func() {
 		<-p2started
 		close(reached)
 	})
