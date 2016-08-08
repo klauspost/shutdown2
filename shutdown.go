@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -258,6 +259,7 @@ func onFunc(prio int, fn func()) Notifier {
 				defer func() {
 					if r := recover(); r != nil {
 						Logger.Printf("Error: Panic in shutdown function: %v", r)
+						Logger.Printf("%s", string(debug.Stack()))
 					}
 					if c != nil {
 						close(c)
@@ -364,7 +366,7 @@ func Shutdown() {
 			select {
 			case <-wait[i]:
 			case <-timeout:
-				Logger.Printf("timeout waiting to shutdown, forcing shutdown")
+				Logger.Printf("timeout waiting to shutdown, forcing shutdown stage %v", stage)
 				break brwait
 			}
 		}
