@@ -171,6 +171,9 @@ func (s *Notifier) CancelWait() {
 			if a == b {
 				// Find the matching internal and remove that.
 				for i := range shutdownQueue[n] {
+					if len(shutdownQueue[n]) < i {
+						continue
+					}
 					b = shutdownQueue[n][i]
 					if fn.internal == b {
 						shutdownQueue[n] = append(shutdownQueue[n][:i], shutdownQueue[n][i+1:]...)
@@ -337,7 +340,7 @@ func Shutdown() {
 			continue
 		}
 		if stage == 0 {
-			Logger.Printf("Initiating shutdown")
+			Logger.Printf("Initiating shutdown %v", time.Now())
 		} else {
 			Logger.Printf("Shutdown stage %v", stage)
 		}
