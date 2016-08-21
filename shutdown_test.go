@@ -3,8 +3,11 @@
 package shutdown
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,7 +21,7 @@ func reset() {
 	defer srM.Unlock()
 	wg = &sync.WaitGroup{}
 	shutdownRequested = false
-	shutdownQueue = [4][]Notifier{}
+	shutdownQueue = [4][]iNotifier{}
 	shutdownFnQueue = [4][]fnNotify{}
 	shutdownFinished = make(chan struct{})
 }
@@ -724,6 +727,37 @@ func TestFnCancel(t *testing.T) {
 	}
 }
 
+func TestFnCancelWait2(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	var g0, g1, g2, g3 bool
+
+	// Register a function
+	notp := PreShutdownFn(func() {
+		g0 = true
+	})
+	not1 := FirstFn(func() {
+		g1 = true
+	})
+	not2 := SecondFn(func() {
+		g2 = true
+	})
+	not3 := ThirdFn(func() {
+		g3 = true
+	})
+
+	notp.CancelWait()
+	not1.CancelWait()
+	not2.CancelWait()
+	not3.CancelWait()
+
+	// Start shutdown
+	Shutdown()
+	if g1 || g2 || g3 || g0 {
+		t.Fatal("got unexpected shutdown signal", g0, g1, g2, g3)
+	}
+}
+
 func TestFnPanic(t *testing.T) {
 	reset()
 	defer close(startTimer(t))
@@ -767,6 +801,70 @@ func TestFnNotify(t *testing.T) {
 	}
 	if !gotcall {
 		t.Fatal("did not get expected shutdown signal")
+	}
+}
+
+func TestStatusTimerFn(t *testing.T) {
+	reset()
+	FirstFn(func() {
+		time.Sleep(time.Millisecond * 100)
+	})
+	_, file, line, _ := runtime.Caller(0)
+	want := fmt.Sprintf("%s:%d", file, line-1)
+
+	old := Logger
+	var b bytes.Buffer
+	SetLogPrinter(func(f string, val ...interface{}) {
+		b.WriteString(fmt.Sprintf(f+"\n", val...))
+	})
+	StatusTimer = time.Millisecond
+	Shutdown()
+	Logger = old
+	StatusTimer = time.Minute
+	if !strings.Contains(b.String(), want) {
+		t.Errorf("Expected logger to contain trace to %s, got: %v", want, b.String())
+	}
+	lines := strings.Split(b.String(), "\n")
+	for _, l := range lines {
+		if strings.Contains(l, want) {
+			t.Log("Got:", l)
+			break
+		}
+	}
+}
+
+func TestStatusTimer(t *testing.T) {
+	reset()
+	fn := First()
+	_, file, line, _ := runtime.Caller(0)
+	want := fmt.Sprintf("%s:%d", file, line-1)
+
+	go func() {
+		select {
+		case v := <-fn:
+			time.Sleep(100 * time.Millisecond)
+			close(v)
+		}
+	}()
+
+	old := Logger
+	var b bytes.Buffer
+	SetLogPrinter(func(f string, val ...interface{}) {
+		b.WriteString(fmt.Sprintf(f+"\n", val...))
+	})
+	StatusTimer = time.Millisecond
+	Shutdown()
+	Logger = old
+	StatusTimer = time.Minute
+	if !strings.Contains(b.String(), want) {
+		t.Errorf("Expected logger to contain trace to %s, got: %v", want, b.String())
+	}
+	lines := strings.Split(b.String(), "\n")
+	for _, l := range lines {
+		if strings.Contains(l, want) {
+			t.Log("Got:", l)
+			break
+		}
 	}
 }
 
