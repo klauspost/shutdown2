@@ -950,6 +950,60 @@ func TestCancelMulti(t *testing.T) {
 	Shutdown()
 }
 
+func TestCancelMulti2(t *testing.T) {
+	reset()
+	SetTimeout(time.Second)
+	defer close(startTimer(t))
+	rand.Seed(0xC0CAC01A)
+	var wg sync.WaitGroup
+	wg.Add(10000)
+	for i := 0; i < 10000; i++ {
+		var n Notifier
+		switch rand.Int31n(10) {
+		case 0:
+			n = PreShutdown()
+		case 1:
+			n = First()
+		case 2:
+			n = Second()
+		case 3:
+			n = Third()
+		case 4:
+			n = PreShutdownFn(func() {})
+		case 5:
+			n = FirstFn(func() {})
+		case 6:
+			n = SecondFn(func() {})
+		case 7:
+			n = ThirdFn(func() {})
+		}
+		go func(n Notifier, r int) {
+			if r&1 == 0 {
+				n.Cancel()
+				wg.Done()
+				select {
+				case v, ok := <-n:
+					t.Errorf("Got notifier on %+v", n)
+					if ok {
+						close(v)
+					}
+				}
+			} else {
+				wg.Done()
+				select {
+				case v, ok := <-n:
+					if ok {
+						close(v)
+					}
+				}
+			}
+		}(n, rand.Intn(100))
+	}
+	wg.Wait()
+	// Start shutdown
+	Shutdown()
+}
+
 func TestCancelWaitMulti(t *testing.T) {
 	reset()
 	SetTimeout(time.Second)
@@ -981,6 +1035,64 @@ func TestCancelWaitMulti(t *testing.T) {
 		}(n, time.Millisecond*time.Duration(rand.Intn(250)))
 		time.Sleep(time.Millisecond)
 	}
+	// Start shutdown
+	Shutdown()
+}
+
+func TestCancelWaitMulti2(t *testing.T) {
+	reset()
+	SetTimeout(time.Second)
+	defer close(startTimer(t))
+	rand.Seed(0xC0CAC01A)
+	var wg sync.WaitGroup
+	wg.Add(10000)
+	for i := 0; i < 10000; i++ {
+		var n Notifier
+		switch rand.Int31n(10) {
+		case 0:
+			n = PreShutdown()
+		case 1:
+			n = First()
+		case 2:
+			n = Second()
+		case 3:
+			n = Third()
+		case 4:
+			n = PreShutdownFn(func() {})
+		case 5:
+			n = FirstFn(func() {})
+		case 6:
+			n = SecondFn(func() {})
+		case 7:
+			n = ThirdFn(func() {})
+		}
+		go func(n Notifier, r int) {
+			if r%3 == 0 {
+				n.CancelWait()
+				wg.Done()
+				select {
+				case v, ok := <-n:
+					t.Errorf("Got notifier on %+v", n)
+					if ok {
+						close(v)
+					}
+				}
+			} else if r%2 == 1 {
+				wg.Done()
+				wg.Wait()
+				n.CancelWait()
+			} else {
+				wg.Done()
+				select {
+				case v, ok := <-n:
+					if ok {
+						close(v)
+					}
+				}
+			}
+		}(n, rand.Intn(100))
+	}
+	wg.Wait()
 	// Start shutdown
 	Shutdown()
 }
