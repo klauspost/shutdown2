@@ -956,8 +956,8 @@ func TestCancelMulti2(t *testing.T) {
 	defer close(startTimer(t))
 	rand.Seed(0xC0CAC01A)
 	var wg sync.WaitGroup
-	wg.Add(10000)
-	for i := 0; i < 10000; i++ {
+	wg.Add(1000)
+	for i := 0; i < 1000; i++ {
 		var n Notifier
 		switch rand.Int31n(10) {
 		case 0:
@@ -1045,8 +1045,8 @@ func TestCancelWaitMulti2(t *testing.T) {
 	defer close(startTimer(t))
 	rand.Seed(0xC0CAC01A)
 	var wg sync.WaitGroup
-	wg.Add(10000)
-	for i := 0; i < 10000; i++ {
+	wg.Add(1000)
+	for i := 0; i < 1000; i++ {
 		var n Notifier
 		switch rand.Int31n(10) {
 		case 0:
