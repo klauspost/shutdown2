@@ -147,6 +147,7 @@ func (s *Notifier) Cancel() {
 					b = shutdownQueue[n][i].n
 					if fn.internal.n == b {
 						shutdownQueue[n] = append(shutdownQueue[n][:i], shutdownQueue[n][i+1:]...)
+						break
 					}
 				}
 				// Cancel, so the goroutine exits.
@@ -179,12 +180,10 @@ func (s *Notifier) CancelWait() {
 			if a == b {
 				// Find the matching internal and remove that.
 				for i := range shutdownQueue[n] {
-					if len(shutdownQueue[n]) <= i {
-						continue
-					}
 					b = shutdownQueue[n][i].n
 					if fn.internal.n == b {
 						shutdownQueue[n] = append(shutdownQueue[n][:i], shutdownQueue[n][i+1:]...)
+						break
 					}
 				}
 				// Cancel, so the goroutine exits.

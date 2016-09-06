@@ -245,6 +245,7 @@ func TestWrapHandlerFuncOrder(t *testing.T) {
 	var wait = make(chan bool)
 	var waiting = make(chan bool)
 	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(finished)
 		close(waiting)
 		<-wait
 	})
@@ -255,7 +256,6 @@ func TestWrapHandlerFuncOrder(t *testing.T) {
 		res := httptest.NewRecorder()
 		req, _ := http.NewRequest("", "", bytes.NewBufferString(""))
 		wrapped(res, req)
-		close(finished)
 	}()
 
 	release := time.After(time.Millisecond * 100)

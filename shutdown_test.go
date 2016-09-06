@@ -5,6 +5,7 @@ package shutdown
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"runtime"
 	"strings"
@@ -912,6 +913,76 @@ func TestFnSingleCancel(t *testing.T) {
 	if !ok1 || !ok2 || !ok3 || okcancel {
 		t.Fatal("did not get expected shutdown signal", ok1, ok2, ok3, okcancel)
 	}
+}
+
+func TestCancelMulti(t *testing.T) {
+	reset()
+	SetTimeout(time.Second)
+	defer close(startTimer(t))
+	rand.Seed(0xC0CAC01A)
+	for i := 0; i < 1000; i++ {
+		var n Notifier
+		switch rand.Int31n(10) {
+		case 0:
+			n = PreShutdown()
+		case 1:
+			n = First()
+		case 2:
+			n = Second()
+		case 3:
+			n = Third()
+		case 4:
+			n = PreShutdownFn(func() {})
+		case 5:
+			n = FirstFn(func() {})
+		case 6:
+			n = SecondFn(func() {})
+		case 7:
+			n = ThirdFn(func() {})
+		}
+		go func(n Notifier, t time.Duration) {
+			time.Sleep(t)
+			n.Cancel()
+		}(n, time.Millisecond*time.Duration(rand.Intn(100)))
+		time.Sleep(time.Millisecond)
+	}
+	// Start shutdown
+	Shutdown()
+}
+
+func TestCancelWaitMulti(t *testing.T) {
+	reset()
+	SetTimeout(time.Second)
+	defer close(startTimer(t))
+	rand.Seed(0xC0CAC01A)
+	for i := 0; i < 1000; i++ {
+		var n Notifier
+		switch rand.Int31n(10) {
+		case 0:
+			n = PreShutdown()
+		case 1:
+			n = First()
+		case 2:
+			n = Second()
+		case 3:
+			n = Third()
+		case 4:
+			n = PreShutdownFn(func() {})
+		case 5:
+			n = FirstFn(func() {})
+		case 6:
+			n = SecondFn(func() {})
+		case 7:
+			n = ThirdFn(func() {})
+		}
+		go func(n Notifier, t time.Duration) {
+			time.Sleep(t)
+			n.CancelWait()
+		}(n, time.Millisecond*time.Duration(rand.Intn(250)))
+		time.Sleep(time.Millisecond)
+	}
+	// Start shutdown
+	Shutdown()
 }
 
 // Get a notifier and perform our own code when we shutdown
