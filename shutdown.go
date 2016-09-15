@@ -35,7 +35,7 @@ type LogPrinter interface {
 var (
 	// Logger used for output.
 	// This can be exchanged with your own.
-	Logger LogPrinter = log.New(os.Stderr, "[shutdown]: ", log.LstdFlags)
+	Logger = LogPrinter(log.New(os.Stderr, "[shutdown]: ", log.LstdFlags))
 
 	// StagePS indicates the pre shutdown stage when waiting for locks to be released.
 	StagePS = Stage{0}

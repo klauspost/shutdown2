@@ -9,6 +9,7 @@ os:
 go:
   - 1.5
   - 1.6
+  - 1.7
   - tip
 
 
@@ -16,6 +17,7 @@ install:
  - go get ./...
  - go get -u github.com/golang/lint/golint
  - go get -u golang.org/x/tools/cmd/goimports
+ - go get -u golang.org/x/net/context
 
 script: 
  - go vet ./...

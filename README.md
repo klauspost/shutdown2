@@ -29,9 +29,25 @@ All operations have **timeouts**. This is to fix another big issue with shutdown
 
 Finally, you can always cancel a notifier, which will remove it from the shutdown queue.
 
-# v2 changes
+# changes
 
+#### "context" support
+
+Support for the [context](https://golang.org/pkg/context/) package has been added. 
+This allows you to easily wrap shutdown cancellation to your contexts using `shutdown.CancelCtx(parent Context)`.
+
+This functions equivalent to calling [`context.WithCancel`](https://golang.org/pkg/context/#WithCancel) and
+you must release resources the same way, by calling the returned 
+[CancelFunc](https://golang.org/pkg/context/#CancelFunc).
+
+For legacy codebases we will seamlessly integrate with 
+[golang.org/x/net/context](https://godoc.org/golang.org/x/net/context).
+Be sure to update to the latest version using `go get -u golang.org/x/net/context`, 
+since Go 1.7 compatibility is a recent update. 
+
+#### v2
 This is version 2 of the shutdown package. It contains some breaking changes to simplify the use of shutdown functions.
+
 
 # usage
 
