@@ -305,6 +305,8 @@ func TestContextLog(t *testing.T) {
 	txt2 := "something else"
 	txt3 := 456778
 	txt4 := time.Now()
+	txtL := "politically correct text"
+	_ = Lock(txtL)
 	_ = First(txt1)
 	_ = Second(txt2, txt3)
 	_ = ThirdFn(func() { select {} }, txt4)
@@ -321,6 +323,9 @@ func TestContextLog(t *testing.T) {
 	}
 	if !strings.Contains(logged, fmt.Sprintf("%v", txt4)) {
 		t.Errorf("Log should contain %v", txt4)
+	}
+	if !strings.Contains(logged, fmt.Sprintf("%v", txtL)) {
+		t.Errorf("Log should contain %v", txtL)
 	}
 }
 

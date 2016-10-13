@@ -501,19 +501,17 @@ func Lock(ctx ...interface{}) func() {
 	var calledFrom string
 	if LogLockTimeouts {
 		_, file, line, _ := runtime.Caller(1)
-		calledFrom = fmt.Sprintf("%s:%d", file, line)
+		if len(ctx) > 0 {
+			calledFrom = fmt.Sprintf("%v. ", ctx)
+		}
+		calledFrom = fmt.Sprintf("%sCalled from %s:%d", calledFrom, file, line)
 	}
 
-	// Store context
-	var ctxs string
-	if LogLockTimeouts {
-		ctxs = fmt.Sprintf("%v", ctx)
-	}
 	go func(wg *sync.WaitGroup) {
 		select {
 		case <-timeout:
 			if LogLockTimeouts {
-				Logger.Printf(WarningPrefix+"Lock %s expired. Called from %s\n", ctxs, calledFrom)
+				Logger.Printf(WarningPrefix+"Lock expired! %s", calledFrom)
 			}
 		case <-release:
 		}
