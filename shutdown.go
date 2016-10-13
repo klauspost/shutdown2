@@ -38,7 +38,7 @@ var (
 	Logger = LogPrinter(log.New(os.Stderr, "[shutdown]: ", log.LstdFlags))
 
 	// LoggerMu is a mutex for the Logger
-	LoggerMu sync.Mutex
+	LoggerMu sync.RWMutex
 
 	// StagePS indicates the pre shutdown stage when waiting for locks to be released.
 	StagePS = Stage{0}
@@ -98,9 +98,7 @@ type logWrapper struct {
 }
 
 func (l logWrapper) Printf(format string, v ...interface{}) {
-	LoggerMu.Lock()
 	l.w(format, v...)
-	LoggerMu.Unlock()
 }
 
 // SetLogPrinter will use the specified function to write logging information.
@@ -297,8 +295,10 @@ func onFunc(prio, depth int, fn func(), ctx []interface{}) Notifier {
 			{
 				defer func() {
 					if r := recover(); r != nil {
+						LoggerMu.RLock()
 						Logger.Printf(ErrorPrefix+"Panic in shutdown function: %v (%v)", r, f.internal.calledFrom)
 						Logger.Printf("%s", string(debug.Stack()))
+						LoggerMu.RUnlock()
 					}
 					if c != nil {
 						close(c)
@@ -384,11 +384,13 @@ func Shutdown() {
 		if len(queue) == 0 {
 			continue
 		}
+		LoggerMu.RLock()
 		if stage == 0 {
 			Logger.Printf("Initiating shutdown %v", time.Now())
 		} else {
 			Logger.Printf("Shutdown stage %v", stage)
 		}
+		LoggerMu.RUnlock()
 		wait := make([]chan struct{}, len(queue))
 		var calledFrom []string
 		if LogLockTimeouts {
@@ -427,14 +429,18 @@ func Shutdown() {
 				case <-wait[i]:
 					break wloop
 				case <-timeout:
+					LoggerMu.RLock()
 					if len(calledFrom) > 0 {
 						Logger.Printf(ErrorPrefix+"Notifier Timed Out: %s", calledFrom[i])
 					}
 					Logger.Printf(ErrorPrefix+"Timeout waiting to shutdown, forcing shutdown stage %v.", stage)
+					LoggerMu.RUnlock()
 					break brwait
 				case <-tick:
 					if len(calledFrom) > 0 {
+						LoggerMu.RLock()
 						Logger.Printf(WarningPrefix+"Stage %d, waiting for notifier (%s)", stage, calledFrom[i])
+						LoggerMu.RUnlock()
 					}
 				}
 			}
@@ -511,7 +517,9 @@ func Lock(ctx ...interface{}) func() {
 		select {
 		case <-timeout:
 			if LogLockTimeouts {
+				LoggerMu.RLock()
 				Logger.Printf(WarningPrefix+"Lock expired! %s", calledFrom)
+				LoggerMu.RUnlock()
 			}
 		case <-release:
 		}
