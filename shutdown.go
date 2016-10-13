@@ -37,6 +37,9 @@ var (
 	// This can be exchanged with your own.
 	Logger = LogPrinter(log.New(os.Stderr, "[shutdown]: ", log.LstdFlags))
 
+	// LoggerMu is a mutex for the Logger
+	LoggerMu sync.Mutex
+
 	// StagePS indicates the pre shutdown stage when waiting for locks to be released.
 	StagePS = Stage{0}
 
@@ -54,6 +57,24 @@ var (
 
 	// ErrorPrefix is printed before errors.
 	ErrorPrefix = "ERROR: "
+
+	// LogLockTimeouts enables log timeout warnings
+	// and notifier status updates.
+	// Should not be changed once shutdown has started.
+	LogLockTimeouts = true
+
+	// StatusTimer is the time between logging which notifiers are waiting to finish.
+	// Should not be changed once shutdown has started.
+	StatusTimer = time.Minute
+
+	sqM              sync.Mutex // Mutex for below
+	shutdownQueue    [4][]iNotifier
+	shutdownFnQueue  [4][]fnNotify
+	shutdownFinished = make(chan struct{}, 0) // Closed when shutdown has finished
+
+	srM               sync.RWMutex // Mutex for below
+	shutdownRequested = false
+	timeouts          = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
 )
 
 // Notifier is a channel, that will be sent a channel
@@ -77,24 +98,17 @@ type logWrapper struct {
 }
 
 func (l logWrapper) Printf(format string, v ...interface{}) {
+	LoggerMu.Lock()
 	l.w(format, v...)
+	LoggerMu.Unlock()
 }
 
 // SetLogPrinter will use the specified function to write logging information.
-// The writer must handle concurrent writes.
 func SetLogPrinter(fn func(format string, v ...interface{})) {
+	LoggerMu.Lock()
 	Logger = logWrapper{w: fn}
+	LoggerMu.Unlock()
 }
-
-//TODO(klauspost): These should be added to a struct for easier testing.
-var sqM sync.Mutex // Mutex for below
-var shutdownQueue [4][]iNotifier
-var shutdownFnQueue [4][]fnNotify
-var shutdownFinished = make(chan struct{}, 0) // Closed when shutdown has finished
-
-var srM sync.RWMutex // Mutex for below
-var shutdownRequested = false
-var timeouts = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
 
 // SetTimeout sets maximum delay to wait for each stage to finish.
 // When the timeout has expired for a stage the next stage will be initiated.
@@ -214,47 +228,55 @@ func (s *Notifier) CancelWait() {
 	sqM.Unlock()
 }
 
-// PreShutdown will return a Notifier that will be fired as soon as the shutdown
+// PreShutdown will return a Notifier that will be fired as soon as the shutdown.
 // is signalled, before locks are released.
 // This allows to for instance send signals to upstream servers not to send more requests.
+// The context is printed if LogLockTimeouts is enabled.
 func PreShutdown(ctx ...interface{}) Notifier {
 	return onShutdown(0, 1, ctx).n
 }
 
-// PreShutdownFn registers a function that will be called as soon as the shutdown
+// PreShutdownFn registers a function that will be called as soon as the shutdown.
 // is signalled, before locks are released.
 // This allows to for instance send signals to upstream servers not to send more requests.
+// The context is printed if LogLockTimeouts is enabled.
 func PreShutdownFn(fn func(), ctx ...interface{}) Notifier {
 	return onFunc(0, 1, fn, ctx)
 }
 
-// First returns a notifier that will be called in the first stage of shutdowns
+// First returns a notifier that will be called in the first stage of shutdowns.
+// The context is printed if LogLockTimeouts is enabled.
 func First(ctx ...interface{}) Notifier {
 	return onShutdown(1, 1, ctx).n
 }
 
 // FirstFn executes a function in the first stage of the shutdown
+// The context is printed if LogLockTimeouts is enabled.
 func FirstFn(fn func(), ctx ...interface{}) Notifier {
 	return onFunc(1, 1, fn, ctx)
 }
 
-// Second returns a notifier that will be called in the second stage of shutdowns
+// Second returns a notifier that will be called in the second stage of shutdowns.
+// The context is printed if LogLockTimeouts is enabled.
 func Second(ctx ...interface{}) Notifier {
 	return onShutdown(2, 1, ctx).n
 }
 
-// SecondFn executes a function in the second stage of the shutdown
+// SecondFn executes a function in the second stage of the shutdown.
+// The context is printed if LogLockTimeouts is enabled.
 func SecondFn(fn func(), ctx ...interface{}) Notifier {
 	return onFunc(2, 1, fn, ctx)
 }
 
-// Third returns a notifier that will be called in the third stage of shutdowns
+// Third returns a notifier that will be called in the third stage of shutdowns.
+// The context is printed if LogLockTimeouts is enabled.
 func Third(ctx ...interface{}) Notifier {
 	return onShutdown(3, 1, ctx).n
 }
 
-// ThirdFn executes a function in the third stage of the shutdown
-// The returned Notifier is only really useful for cancelling the shutdown function
+// ThirdFn executes a function in the third stage of the shutdown.
+// The returned Notifier is only really useful for cancelling the shutdown function.
+// The context is printed if LogLockTimeouts is enabled.
 func ThirdFn(fn func(), ctx ...interface{}) Notifier {
 	return onFunc(3, 1, fn, ctx)
 }
@@ -445,15 +467,6 @@ func Wait() {
 	<-shutdownFinished
 }
 
-// LogLockTimeouts enables log timeout warnings
-// and notifier status updates.
-// Should not be changed once shutdown has started.
-var LogLockTimeouts = true
-
-// StatusTimer is the time between logging which notifiers are waiting to finish.
-// Should not be changed once shutdown has started.
-var StatusTimer = time.Minute
-
 // Lock will signal that you have a function running,
 // that you do not want to be interrupted by a shutdown.
 //
@@ -470,7 +483,10 @@ var StatusTimer = time.Minute
 // the lock.
 //
 // You should not hold a lock when you start a shutdown.
-func Lock() func() {
+//
+// For easier debugging you can send a context that will be printed if the lock
+// times out. All supplied context is printed with '%v' formatting.
+func Lock(ctx ...interface{}) func() {
 	srM.RLock()
 	if shutdownRequested {
 		srM.RUnlock()
@@ -487,11 +503,17 @@ func Lock() func() {
 		_, file, line, _ := runtime.Caller(1)
 		calledFrom = fmt.Sprintf("%s:%d", file, line)
 	}
+
+	// Store context
+	var ctxs string
+	if LogLockTimeouts {
+		ctxs = fmt.Sprintf("%v", ctx)
+	}
 	go func(wg *sync.WaitGroup) {
 		select {
 		case <-timeout:
 			if LogLockTimeouts {
-				Logger.Printf(WarningPrefix+"Lock expired. Called from %s\n", calledFrom)
+				Logger.Printf(WarningPrefix+"Lock %s expired. Called from %s\n", ctxs, calledFrom)
 			}
 		case <-release:
 		}
