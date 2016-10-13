@@ -28,6 +28,7 @@ func reset() {
 }
 
 func startTimer(t *testing.T) chan struct{} {
+	SetLogPrinter(t.Logf)
 	finished := make(chan struct{}, 0)
 	srM.RLock()
 	var to time.Duration
@@ -279,6 +280,47 @@ func TestCancelWait4(t *testing.T) {
 	Shutdown()
 	if !ok {
 		t.Fatal("missing shutdown signal")
+	}
+}
+
+type logBuffer struct {
+	buf bytes.Buffer
+	fn  func(string, ...interface{})
+}
+
+func (l *logBuffer) WriteF(format string, a ...interface{}) {
+	//fmt.Printf(format, a...)
+	l.fn(format, a...)
+	l.buf.WriteString(fmt.Sprintf(format, a...) + "\n")
+}
+
+// TestCancelWaitContext assert that context is logged as expected.
+func TestCancelWaitContext(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	SetTimeout(10 * time.Millisecond)
+	var buf = &logBuffer{fn: t.Logf}
+	SetLogPrinter(buf.WriteF)
+	txt1 := "arbitrary text"
+	txt2 := "something else"
+	txt3 := 456778
+	txt4 := time.Now()
+	_ = First(txt1)
+	_ = Second(txt2, txt3)
+	_ = ThirdFn(func() { select {} }, txt4)
+	Shutdown()
+	logged := buf.buf.String()
+	if !strings.Contains(logged, txt1) {
+		t.Errorf("Log should contain %s", txt1)
+	}
+	if !strings.Contains(logged, txt2) {
+		t.Errorf("Log should contain %s", txt2)
+	}
+	if !strings.Contains(logged, fmt.Sprintf("%v", txt3)) {
+		t.Errorf("Log should contain %s", txt3)
+	}
+	if !strings.Contains(logged, fmt.Sprintf("%v", txt4)) {
+		t.Errorf("Log should contain %s", txt4)
 	}
 }
 

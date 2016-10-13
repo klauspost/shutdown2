@@ -24,7 +24,7 @@ func CancelCtxN(s Stage, parent context.Context) (ctx context.Context, cancel co
 
 func cancelContext(s Stage, parent context.Context) (ctx context.Context, cancel context.CancelFunc) {
 	ctx, cancel = context.WithCancel(parent)
-	f := onShutdown(s.n, 2).n
+	f := onShutdown(s.n, 2, []interface{}{parent}).n
 	go func() {
 		select {
 		case <-ctx.Done():

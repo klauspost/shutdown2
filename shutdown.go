@@ -48,6 +48,12 @@ var (
 
 	// Stage3 indicates third stage of timeouts.
 	Stage3 = Stage{3}
+
+	// WarningPrefix is printed before warnings.
+	WarningPrefix = "WARN: "
+
+	// ErrorPrefix is printed before errors.
+	ErrorPrefix = "ERROR: "
 )
 
 // Notifier is a channel, that will be sent a channel
@@ -211,53 +217,53 @@ func (s *Notifier) CancelWait() {
 // PreShutdown will return a Notifier that will be fired as soon as the shutdown
 // is signalled, before locks are released.
 // This allows to for instance send signals to upstream servers not to send more requests.
-func PreShutdown() Notifier {
-	return onShutdown(0, 1).n
+func PreShutdown(ctx ...interface{}) Notifier {
+	return onShutdown(0, 1, ctx).n
 }
 
 // PreShutdownFn registers a function that will be called as soon as the shutdown
 // is signalled, before locks are released.
 // This allows to for instance send signals to upstream servers not to send more requests.
-func PreShutdownFn(fn func()) Notifier {
-	return onFunc(0, 1, fn)
+func PreShutdownFn(fn func(), ctx ...interface{}) Notifier {
+	return onFunc(0, 1, fn, ctx)
 }
 
 // First returns a notifier that will be called in the first stage of shutdowns
-func First() Notifier {
-	return onShutdown(1, 1).n
+func First(ctx ...interface{}) Notifier {
+	return onShutdown(1, 1, ctx).n
 }
 
 // FirstFn executes a function in the first stage of the shutdown
-func FirstFn(fn func()) Notifier {
-	return onFunc(1, 1, fn)
+func FirstFn(fn func(), ctx ...interface{}) Notifier {
+	return onFunc(1, 1, fn, ctx)
 }
 
 // Second returns a notifier that will be called in the second stage of shutdowns
-func Second() Notifier {
-	return onShutdown(2, 1).n
+func Second(ctx ...interface{}) Notifier {
+	return onShutdown(2, 1, ctx).n
 }
 
 // SecondFn executes a function in the second stage of the shutdown
-func SecondFn(fn func()) Notifier {
-	return onFunc(2, 1, fn)
+func SecondFn(fn func(), ctx ...interface{}) Notifier {
+	return onFunc(2, 1, fn, ctx)
 }
 
 // Third returns a notifier that will be called in the third stage of shutdowns
-func Third() Notifier {
-	return onShutdown(3, 1).n
+func Third(ctx ...interface{}) Notifier {
+	return onShutdown(3, 1, ctx).n
 }
 
 // ThirdFn executes a function in the third stage of the shutdown
 // The returned Notifier is only really useful for cancelling the shutdown function
-func ThirdFn(fn func()) Notifier {
-	return onFunc(3, 1, fn)
+func ThirdFn(fn func(), ctx ...interface{}) Notifier {
+	return onFunc(3, 1, fn, ctx)
 }
 
 // Create a function notifier.
 // depth is the call depth of the caller.
-func onFunc(prio, depth int, fn func()) Notifier {
+func onFunc(prio, depth int, fn func(), ctx []interface{}) Notifier {
 	f := fnNotify{
-		internal: onShutdown(prio, depth+1),
+		internal: onShutdown(prio, depth+1, ctx),
 		cancel:   make(chan struct{}),
 		client:   make(Notifier, 1),
 	}
@@ -269,7 +275,7 @@ func onFunc(prio, depth int, fn func()) Notifier {
 			{
 				defer func() {
 					if r := recover(); r != nil {
-						Logger.Printf("Error: Panic in shutdown function: %v (%v)", r, f.internal.calledFrom)
+						Logger.Printf(ErrorPrefix+"Panic in shutdown function: %v (%v)", r, f.internal.calledFrom)
 						Logger.Printf("%s", string(debug.Stack()))
 					}
 					if c != nil {
@@ -288,13 +294,16 @@ func onFunc(prio, depth int, fn func()) Notifier {
 
 // onShutdown will request a shutdown notifier.
 // depth is the call depth of the caller.
-func onShutdown(prio, depth int) iNotifier {
+func onShutdown(prio, depth int, ctx []interface{}) iNotifier {
 	sqM.Lock()
 	n := make(Notifier, 1)
 	in := iNotifier{n: n}
 	if LogLockTimeouts {
 		_, file, line, _ := runtime.Caller(depth + 1)
 		in.calledFrom = fmt.Sprintf("%s:%d", file, line)
+		if len(ctx) != 0 {
+			in.calledFrom = fmt.Sprintf("%v - %s", ctx, in.calledFrom)
+		}
 	}
 	shutdownQueue[prio] = append(shutdownQueue[prio], in)
 	sqM.Unlock()
@@ -397,13 +406,13 @@ func Shutdown() {
 					break wloop
 				case <-timeout:
 					if len(calledFrom) > 0 {
-						Logger.Printf("Timed out notifier created at %s", calledFrom[i])
+						Logger.Printf(ErrorPrefix+"Notifier Timed Out: %s", calledFrom[i])
 					}
-					Logger.Printf("Timeout waiting to shutdown, forcing shutdown stage %v.", stage)
+					Logger.Printf(ErrorPrefix+"Timeout waiting to shutdown, forcing shutdown stage %v.", stage)
 					break brwait
 				case <-tick:
 					if len(calledFrom) > 0 {
-						Logger.Printf("Stage %d, waiting for notifier (%s)", stage, calledFrom[i])
+						Logger.Printf(WarningPrefix+"Stage %d, waiting for notifier (%s)", stage, calledFrom[i])
 					}
 				}
 			}
@@ -482,7 +491,7 @@ func Lock() func() {
 		select {
 		case <-timeout:
 			if LogLockTimeouts {
-				Logger.Printf("warning: lock expired. Called from %s\n", calledFrom)
+				Logger.Printf(WarningPrefix+"Lock expired. Called from %s\n", calledFrom)
 			}
 		case <-release:
 		}
