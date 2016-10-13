@@ -38,7 +38,7 @@ var (
 	Logger = LogPrinter(log.New(os.Stderr, "[shutdown]: ", log.LstdFlags))
 
 	// LoggerMu is a mutex for the Logger
-	LoggerMu sync.RWMutex
+	LoggerMu sync.Mutex
 
 	// StagePS indicates the pre shutdown stage when waiting for locks to be released.
 	StagePS = Stage{0}
@@ -295,10 +295,10 @@ func onFunc(prio, depth int, fn func(), ctx []interface{}) Notifier {
 			{
 				defer func() {
 					if r := recover(); r != nil {
-						LoggerMu.RLock()
+						LoggerMu.Lock()
 						Logger.Printf(ErrorPrefix+"Panic in shutdown function: %v (%v)", r, f.internal.calledFrom)
 						Logger.Printf("%s", string(debug.Stack()))
-						LoggerMu.RUnlock()
+						LoggerMu.Unlock()
 					}
 					if c != nil {
 						close(c)
@@ -384,13 +384,13 @@ func Shutdown() {
 		if len(queue) == 0 {
 			continue
 		}
-		LoggerMu.RLock()
+		LoggerMu.Lock()
 		if stage == 0 {
 			Logger.Printf("Initiating shutdown %v", time.Now())
 		} else {
 			Logger.Printf("Shutdown stage %v", stage)
 		}
-		LoggerMu.RUnlock()
+		LoggerMu.Unlock()
 		wait := make([]chan struct{}, len(queue))
 		var calledFrom []string
 		if LogLockTimeouts {
@@ -429,18 +429,18 @@ func Shutdown() {
 				case <-wait[i]:
 					break wloop
 				case <-timeout:
-					LoggerMu.RLock()
+					LoggerMu.Lock()
 					if len(calledFrom) > 0 {
 						Logger.Printf(ErrorPrefix+"Notifier Timed Out: %s", calledFrom[i])
 					}
 					Logger.Printf(ErrorPrefix+"Timeout waiting to shutdown, forcing shutdown stage %v.", stage)
-					LoggerMu.RUnlock()
+					LoggerMu.Unlock()
 					break brwait
 				case <-tick:
 					if len(calledFrom) > 0 {
-						LoggerMu.RLock()
+						LoggerMu.Lock()
 						Logger.Printf(WarningPrefix+"Stage %d, waiting for notifier (%s)", stage, calledFrom[i])
-						LoggerMu.RUnlock()
+						LoggerMu.Unlock()
 					}
 				}
 			}
@@ -517,9 +517,9 @@ func Lock(ctx ...interface{}) func() {
 		select {
 		case <-timeout:
 			if LogLockTimeouts {
-				LoggerMu.RLock()
+				LoggerMu.Lock()
 				Logger.Printf(WarningPrefix+"Lock expired! %s", calledFrom)
-				LoggerMu.RUnlock()
+				LoggerMu.Unlock()
 			}
 		case <-release:
 		}
