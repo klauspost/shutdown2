@@ -294,8 +294,8 @@ func (l *logBuffer) WriteF(format string, a ...interface{}) {
 	l.buf.WriteString(fmt.Sprintf(format, a...) + "\n")
 }
 
-// TestCancelWaitContext assert that context is logged as expected.
-func TestCancelWaitContext(t *testing.T) {
+// TestContextLog assert that context is logged as expected.
+func TestContextLog(t *testing.T) {
 	reset()
 	defer close(startTimer(t))
 	SetTimeout(10 * time.Millisecond)
@@ -317,10 +317,10 @@ func TestCancelWaitContext(t *testing.T) {
 		t.Errorf("Log should contain %s", txt2)
 	}
 	if !strings.Contains(logged, fmt.Sprintf("%v", txt3)) {
-		t.Errorf("Log should contain %s", txt3)
+		t.Errorf("Log should contain %v", txt3)
 	}
 	if !strings.Contains(logged, fmt.Sprintf("%v", txt4)) {
-		t.Errorf("Log should contain %s", txt4)
+		t.Errorf("Log should contain %v", txt4)
 	}
 }
 
