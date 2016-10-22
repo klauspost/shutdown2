@@ -10,17 +10,17 @@ import "context"
 // The returned context must be cancelled when done similar to
 // https://golang.org/pkg/context/#WithCancel
 func CancelCtx(parent context.Context) (ctx context.Context, cancel context.CancelFunc) {
-	return cancelContext(StagePS, parent)
+	return cancelContext(parent, StagePS)
 }
 
 // CancelCtxN will cancel the supplied context at a supplied shutdown stage.
 // The returned context must be cancelled when done similar to
 // https://golang.org/pkg/context/#WithCancel
-func CancelCtxN(s Stage, parent context.Context) (ctx context.Context, cancel context.CancelFunc) {
-	return cancelContext(s, parent)
+func CancelCtxN(parent context.Context, s Stage) (ctx context.Context, cancel context.CancelFunc) {
+	return cancelContext(parent, s)
 }
 
-func cancelContext(s Stage, parent context.Context) (ctx context.Context, cancel context.CancelFunc) {
+func cancelContext(parent context.Context, s Stage) (ctx context.Context, cancel context.CancelFunc) {
 	ctx, cancel = context.WithCancel(parent)
 	f := onShutdown(s.n, 2, []interface{}{parent}).n
 	go func() {

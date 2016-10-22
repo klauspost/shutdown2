@@ -72,7 +72,7 @@ func TestCancelCtxN(t *testing.T) {
 	contexts := []context.Context{}
 
 	for _, stage := range stages {
-		c1, _ := CancelCtxN(stage, context.Background())
+		c1, _ := CancelCtxN(context.Background(), stage)
 		if got, want := fmt.Sprint(c1), "context.Background.WithCancel"; got != want {
 			t.Errorf("c1.String() = %q want %q", got, want)
 		}
@@ -119,7 +119,7 @@ func TestCancelCtxNShutdown(t *testing.T) {
 	contexts := []context.Context{}
 
 	for _, stage := range stages {
-		c1, cancel1 := CancelCtxN(stage, context.Background())
+		c1, cancel1 := CancelCtxN(context.Background(), stage)
 		o := otherContext{c1}
 		c2, _ := context.WithCancel(o)
 		contexts = append(contexts, c1, o, c2)
