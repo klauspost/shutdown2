@@ -136,14 +136,14 @@ A simple example can be seen in this http handler:
 ```Go
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		// Acquire a lock.
-		l := shutdown.Lock()
+		lock := shutdown.Lock()
 		// While this is held server will not shut down (except after timeout)
 		if lock == nil {
 			// Shutdown has started, return that the service is unavailable
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 		// Defer unlocking the lock.
-		defer l()
+		defer lock()
 		io.WriteString(w, "Server running")
 	})
 ```
