@@ -75,7 +75,7 @@ func TestCancelCtxN(t *testing.T) {
 	contexts := []context.Context{}
 
 	for _, stage := range stages {
-		c1, cc := CancelCtxN(stage, context.Background())
+		c1, cc := CancelCtxN(context.Background(), stage)
 		defer cc()
 		if got, want := fmt.Sprint(c1), "context.Background.WithCancel"; got != want {
 			t.Errorf("c1.String() = %q want %q", got, want)
@@ -124,7 +124,7 @@ func TestCancelCtxNShutdown(t *testing.T) {
 	contexts := []context.Context{}
 
 	for _, stage := range stages {
-		c1, cancel1 := CancelCtxN(stage, context.Background())
+		c1, cancel1 := CancelCtxN(context.Background(), stage)
 		o := otherContext{c1}
 		c2, cc := context.WithCancel(o)
 		defer cc()
@@ -189,8 +189,8 @@ func TestCancelCtxX(t *testing.T) {
 		default:
 			t.Errorf("<-c[%d].Done() blocked, but shouldn't have", i)
 		}
-		if e := c.Err(); e != xcontext.Canceled {
-			t.Errorf("c[%d].Err() == %v want %v", i, e, xcontext.Canceled)
+		if e := c.Err(); e != context.Canceled {
+			t.Errorf("c[%d].Err() == %#v want %#v", i, e, context.Canceled)
 		}
 	}
 }
