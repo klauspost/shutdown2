@@ -172,7 +172,7 @@ You can set a custom `WarningPrefix` and `ErrorPrefix` in the [package variables
 
 When you keep [`LogLockTimeout`](https://godoc.org/github.com/klauspost/shutdown2#pkg-variables) enabled, you will also get detailed information about your lock timeouts, including a `file:line` indication where the notifier/lock was created. It is recommended to keep this enabled for easier debugging.
 
-If a line number isn' enough information you can pass something that can identify your `shutdown.FirstFn(func() {select{}}, "Some Context")`, will print "Some Context" when the function fails to return. The context is simply `fmt.Printf("%v", ctx)` when the function is created, so you can pass arbitrary objects.
+If a line number isn't enough information you can pass something that can identify your `shutdown.FirstFn(func() {select{}}, "Some Context")`, will print "Some Context" when the function fails to return. The context is simply `fmt.Printf("%v", ctx)` when the function is created, so you can pass arbitrary objects.
 
 You can use `SetLogPrinter(func(string, ...interface{}){})` to disable logging.
 
