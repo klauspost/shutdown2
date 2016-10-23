@@ -51,7 +51,7 @@ This is version 2 of the shutdown package. It contains some breaking changes to 
 
 # usage
 
-First get the libary with `go get -u github.com/klauspost/shutdown2`, and add it as an import to your code with `import github.com/klauspost/shutdown`.
+First get the libary with `go get -u github.com/klauspost/shutdown2`, and add it as an import to your code with `import github.com/klauspost/shutdown2`.
 
 The next thing you probably want to do is to register Ctrl+c and system terminate. This will make all shutdown handlers run when any of these are sent to your program:
 ```Go
@@ -141,6 +141,7 @@ A simple example can be seen in this http handler:
 		if lock == nil {
 			// Shutdown has started, return that the service is unavailable
 			w.WriteHeader(http.StatusServiceUnavailable)
+			return
 		}
 		// Defer unlocking the lock.
 		defer lock()
@@ -158,10 +159,22 @@ Also there are some things to be mindful of:
 * Notifiers **can** be created inside shutdown code, but only for stages **following** the current. So stage 1 notifiers can create stage 2 notifiers, but if they create a stage 1 notifier this will never be called.
 * Timeout can be changed once shutdown has been initiated, but it will only affect the **following** stages.
 * Notifiers returned from a function (eg. FirstFn) can be used for selects. They will be notified, but the shutdown manager will not wait for them to finish, so using them for this is not recommended.
-* If a panic occurs inside a shutdown function call in your code, the panic will be recovered and **ignored** and the shutdown will proceed. A message is printed to `log`. If you want to handle panics, you must do it in your code.
+* If a panic occurs inside a shutdown function call in your code, the panic will be recovered and **ignored** and the shutdown will proceed. A message along with the backtrace is printed to `Logger`. If you want to handle panics, you must do it in your code.
 * When shutdown is initiated, it cannot be stopped.
 
 When you design with this do take care that this library is for **controlled** shutdown of your application. If you application crashes no shutdown handlers are run, so panics will still be fatal. You can of course still call the `Shutdown()` function if you recover a panic, but the library does nothing like this automatically.
+
+## logging
+
+By default logging is done to the standard log package. You can replace the [Logger](https://godoc.org/github.com/klauspost/shutdown2#pkg-variables) with your own before you start using the package. You can also send a "Printf" style function to the [`SetLogPrinter`](https://godoc.org/github.com/klauspost/shutdown2#SetLogPrinter). This will allow you to easy hook up things like `(*testing.T).Logf` or specific loggers to intercept output.
+
+You can set a custom `WarningPrefix` and `ErrorPrefix` in the [package variables](https://godoc.org/github.com/klauspost/shutdown2#pkg-variables). 
+
+When you keep [`LogLockTimeout`](https://godoc.org/github.com/klauspost/shutdown2#pkg-variables) enabled, you will also get detailed information about your lock timeouts, including a `file:line` indication where the notifier/lock was created. It is recommended to keep this enabled for easier debugging.
+
+If a line number isn' enough information you can pass something that can identify your `shutdown.FirstFn(func() {select{}}, "Some Context")`, will print "Some Context" when the function fails to return. The context is simply `fmt.Printf("%v", ctx)` when the function is created, so you can pass arbitrary objects.
+
+You can use `SetLogPrinter(func(string, ...interface{}){})` to disable logging.
 
 # why 3 stages?
 By limiting the design to "only" three stages enable you to clearly make design choices, and force you to run as many things as possible in parallel. With this you can write simple design docs. Lets look at a webserver example:
