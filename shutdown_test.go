@@ -25,6 +25,7 @@ func reset() {
 	shutdownQueue = [4][]iNotifier{}
 	shutdownFnQueue = [4][]fnNotify{}
 	shutdownFinished = make(chan struct{})
+	currentStage = Stage{-1}
 }
 
 func startTimer(t *testing.T) chan struct{} {
@@ -360,6 +361,102 @@ func TestFnCancelWait(t *testing.T) {
 	if ok2 {
 		t.Fatal("got unexpected shutdown signal")
 	}
+}
+
+func TestNilNotifier(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	var reached = make(chan struct{})
+	var finished = make(chan struct{})
+	var testDone = make(chan struct{})
+	_ = ThirdFn(func() { close(reached); <-finished })
+	go func() { Shutdown(); close(testDone) }()
+
+	// Wait for stage 3
+	<-reached
+
+	tests := []Notifier{PreShutdown(), First(), Second(), Third(),
+		PreShutdownFn(func() {}), FirstFn(func() {}), SecondFn(func() {}), ThirdFn(func() {})}
+
+	for i := range tests {
+		if tests[i] != nil {
+			t.Errorf("Expected test %d to be nil, was %#v", i, tests[i])
+		}
+	}
+	close(finished)
+	<-testDone
+}
+
+func TestNilNotifierCancel(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	var reached = make(chan struct{})
+	var finished = make(chan struct{})
+	var testDone = make(chan struct{})
+	_ = ThirdFn(func() { close(reached); <-finished })
+	go func() { Shutdown(); close(testDone) }()
+
+	// Wait for stage 3
+	<-reached
+
+	tests := []Notifier{PreShutdown(), First(), Second(), Third(),
+		PreShutdownFn(func() {}), FirstFn(func() {}), SecondFn(func() {}), ThirdFn(func() {})}
+
+	for i := range tests {
+		// All cancels should return at once.
+		tests[i].Cancel()
+	}
+	close(finished)
+	<-testDone
+}
+
+func TestNilNotifierCancelWait(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	var reached = make(chan struct{})
+	var finished = make(chan struct{})
+	var testDone = make(chan struct{})
+	_ = ThirdFn(func() { close(reached); <-finished })
+	go func() { Shutdown(); close(testDone) }()
+
+	// Wait for stage 3
+	<-reached
+
+	tests := []Notifier{PreShutdown(), First(), Second(), Third(),
+		PreShutdownFn(func() {}), FirstFn(func() {}), SecondFn(func() {}), ThirdFn(func() {})}
+
+	for i := range tests {
+		// All cancel-waits should return at once.
+		tests[i].CancelWait()
+	}
+	close(finished)
+	<-testDone
+}
+
+func TestNilNotifierFollowing(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	var reached = make(chan struct{})
+	var finished = make(chan struct{})
+	var testDone = make(chan struct{})
+	_ = PreShutdownFn(func() { close(reached); <-finished })
+	go func() { Shutdown(); close(testDone) }()
+
+	// Wait for stage 3
+	<-reached
+
+	tests := []Notifier{First(), Second(), Third(),
+		FirstFn(func() {}), SecondFn(func() {}), ThirdFn(func() {})}
+
+	for i := range tests {
+		if tests[i] == nil {
+			t.Errorf("Expected test %d to NOT be nil.", i)
+			continue
+		}
+		tests[i].Cancel()
+	}
+	close(finished)
+	<-testDone
 }
 
 func TestWait(t *testing.T) {
