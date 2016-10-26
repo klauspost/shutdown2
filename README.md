@@ -19,17 +19,42 @@ This will enable you to save data, notify other services that your application i
 Managing shutdowns can be very tricky, often leading to races, crashes and strange behavior.
 This package will help you manage the shutdown process and will attempt to fix some of the common problems when dealing with shutting down.
 
-The shutdown package allow you to block shutdown while certain parts of your code is running. This is helpful to ensure that operations are not interrupted.
+The shutdown package allow you to block shutdown while certain parts of your code is running. 
+This is helpful to ensure that operations are not interrupted.
 
-The second part of the shutdown process is notifying goroutines in a select loop and calling functions in your code that handles various shutdown procedures, like closing databases, notifying other servers, deleting temporary files, etc.
+The second part of the shutdown process is notifying goroutines in a select loop and calling functions in 
+your code that handles various shutdown procedures, like closing databases, 
+notifying other servers, deleting temporary files, etc.
 
-The second part of the process has three **stages**, which will enable you to do your shutdown in stages. This will enable you to rely on some parts, like logging, to work in the first two stages. There is no rules for what you should put in which stage, but things executing in stage one can safely rely on stage two not being executed yet.
+The second part of the process has three **stages**, which will enable you to do your shutdown in stages. 
+This will enable you to rely on some parts, like logging, to work in the first two stages. 
+There is no rules for what you should put in which stage, but things executing in stage one can safely rely on stage two not being executed yet.
 
-All operations have **timeouts**. This is to fix another big issue with shutdowns; applications that hang on shutdown. The timeout is for each stage of the shutdown process, and can be adjusted to your application needs. If a timeout is exceeded the next shutdown stage will be initiated regardless.
+All operations have **timeouts**. 
+This is to fix another big issue with shutdowns; applications that hang on shutdown. 
+The timeout is for each stage of the shutdown process, and can be adjusted to your application needs. 
+If a timeout is exceeded the next shutdown stage will be initiated regardless.
 
 Finally, you can always cancel a notifier, which will remove it from the shutdown queue.
 
 # changes
+
+#### nil notifiers
+
+It was tricky to detect cases where shutdown had started when you requested notifiers.
+ 
+To help for that common case, the library now *returns a nil Notifier* if shutdown has already
+reached the stage you are requesting a notifier for. 
+
+This is backwards compatible, but makes it much easier to test for such a case:
+ 
+```Go
+    f := shutdown.First()
+    if f == nil {
+        // Already shutting down.
+        return
+    }
+```
 
 #### "context" support
 
@@ -51,9 +76,11 @@ This is version 2 of the shutdown package. It contains some breaking changes to 
 
 # usage
 
-First get the libary with `go get -u github.com/klauspost/shutdown2`, and add it as an import to your code with `import github.com/klauspost/shutdown2`.
+First get the libary with `go get -u github.com/klauspost/shutdown2`, 
+and add it as an import to your code with `import github.com/klauspost/shutdown2`.
 
-The next thing you probably want to do is to register Ctrl+c and system terminate. This will make all shutdown handlers run when any of these are sent to your program:
+The next thing you probably want to do is to register Ctrl+c and system terminate. 
+This will make all shutdown handlers run when any of these are sent to your program:
 ```Go
 	shutdown.OnSignal(0, os.Interrupt, syscall.SIGTERM)
 ```
@@ -62,7 +89,9 @@ If you don't like the default timeout duration of 5 seconds, you can change it b
 ```Go
   shutdown.SetTimeout(time.Second * 1)
 ```
-Now the maximum delay for shutdown is **4 seconds**. The timeout is applied to each of the stages and that is also the maximum time to wait for the shutdown to begin. If you need to adjust a single stage, use `SetTimeoutN` function.
+Now the maximum delay for shutdown is **4 seconds**. 
+The timeout is applied to each of the stages and that is also the maximum time to wait for the shutdown to begin. 
+If you need to adjust a single stage, use `SetTimeoutN` function.
 
 Next you can register functions to run when shutdown runs:
 ```Go
@@ -78,11 +107,17 @@ Next you can register functions to run when shutdown runs:
     _ = os.Delete("log.txt")
   })
 ```
-As noted there are three stages. All functions in one stage are executed in parallel, but the package will wait for all functions in one stage to have finished before moving on to the next one.  So your code cannot rely on any particular order of execution inside a single stage, but you are guaranteed that the First stage is finished before any functions from stage two are executed.
+As noted there are three stages. 
+All functions in one stage are executed in parallel. 
+The package will wait for all functions in one stage to have finished before moving on to the next one.  
+So your code cannot rely on any particular order of execution inside a single stage, 
+but you are guaranteed that the First stage is finished before any functions from stage two are executed.
 
-You can send a parameter to your function, which is delivered as an `interface{}`. This way you can re-use the same function for similar tasks. See `simple-func.go` in the examples folder.
+You can send a parameter to your function, which is delivered as an `interface{}`. 
+This way you can re-use the same function for similar tasks. See `simple-func.go` in the examples folder.
 
-This example above uses functions that are called, but you can also request channels that are notified on shutdown. This allows you do have shutdown handling in blocked select statements like this:
+This example above uses functions that are called, but you can also request channels that are notified on shutdown. 
+This allows you do have shutdown handling in blocked select statements like this:
 
 ```Go
   go func() {
@@ -95,9 +130,29 @@ This example above uses functions that are called, but you can also request chan
         return
   }
 ```
-It is important that you close the channel you receive. This is your way of signalling that you are done. If you do not close the channel you get shutdown will wait until the timeout has expired before proceeding to the next stage.
+If you suspect that shutdown may already be running, you should check the returned notifier.
+If shutdown has already been initiated, and has reached or surpassed the stage you are requesting a notifier
+for, `nil` will be returned. 
 
-If you for some reason don't need a notifier anymore you can cancel it. When a notifier has been cancelled it will no longer receive notifications, and the shutdown code will no longer wait for it on exit.
+```Go
+    // Get a stage 1 notification
+    finish := shutdown.First()
+    // If shutdown is at Stage 1 or later, nil will be returned 
+    if finish == nil {
+        log.Println("Already shutting down")
+        return
+    }
+    select {
+      case n:= <-finish:
+        log.Println("Closing")
+        close(n)
+        return
+  }
+```
+
+If you for some reason don't need a notifier anymore you can cancel it. 
+When a notifier has been cancelled it will no longer receive notifications, 
+and the shutdown code will no longer wait for it on exit.
 ```Go
   go func() {
     // Get a stage 1 notification
@@ -111,14 +166,21 @@ If you for some reason don't need a notifier anymore you can cancel it. When a n
         return
   }
 ```
-Functions are cancelled the same way by cancelling the returned notifier. Be aware that if shutdown has been initiated you can no longer cancel notifiers, so you may need to aquire a shutdown lock (see below).
+Functions are cancelled the same way by cancelling the returned notifier. 
+Be aware that if shutdown has been initiated you can no longer cancel notifiers, so you may need to aquire a shutdown lock (see below).
 
-If you want to Cancel a notifier, but shutdown may have started, you can use the CancelWait function. It will cancel a Notifier, or wait for it to become active if shutdown has been started.
+If you want to Cancel a notifier, but shutdown may have started, you can use the CancelWait function. 
+It will cancel a Notifier, or wait for it to become active if shutdown has been started.
+
+If you get back a nil notifier because shutdown has already reached that stage, calling CancelWait will return at once.
  
 ```Go
   go func() {
     // Get a stage 1 notification
-    finish := shutdown.First()
+    finish := shutdown.First()    
+    if finish == nil {
+        return 
+    }
     select {
       case n:= <-finish:
         close(n)
@@ -130,7 +192,8 @@ If you want to Cancel a notifier, but shutdown may have started, you can use the
   }
 ```
 
-The final thing you can do is to lock shutdown in parts of your code you do not want to be interrupted by a shutdown, or if the code relies on resources that are destroyed as part of the shutdown process.
+The final thing you can do is to lock shutdown in parts of your code you do not want to be interrupted by a shutdown, 
+or if the code relies on resources that are destroyed as part of the shutdown process.
 
 A simple example can be seen in this http handler:
 ```Go
@@ -148,12 +211,25 @@ A simple example can be seen in this http handler:
 		io.WriteString(w, "Server running")
 	})
 ```
-If shutdown is started, either by a signal or by another goroutine, it will wait until the lock is released. It is important always to release the lock, if shutdown.Lock() returns a non-nil value. Otherwise the server will have to wait until the timeout has passed before it starts shutting down, which may not be what you want.
+If shutdown is started, either by a signal or by another goroutine, it will wait until the lock is released. 
+It is important always to release the lock, if shutdown.Lock() returns a non-nil value. 
+Otherwise the server will have to wait until the timeout has passed before it starts shutting down, which may not be what you want.
 
-Each lock keeps track of its own creation time and will warn you if any lock exceeds the deadline time set for the pre-shutdown stage. This will help you identify issues that may be with your code, where it takes longer to complete than the allowed time, or you have forgotten to unlock any aquired lock.
+As a convenience we also supply wrappers for [`http.Handler`](https://godoc.org/github.com/klauspost/shutdown2#WrapHandler) 
+and [`http.HandlerFunc`](https://godoc.org/github.com/klauspost/shutdown2#WrapHandlerFunc), which will do the same 
+for you.
+ 
+Each lock keeps track of its own creation time and will warn you if any lock exceeds 
+the deadline time set for the pre-shutdown stage. 
+This will help you identify issues that may be with your code, 
+where it takes longer to complete than the allowed time, or you have forgotten to unlock any aquired lock.
 
-Finally you can call `shutdown.Exit(exitcode)` to call all exit handlers and exit your application. This will wait for all locks to be released and notify all shutdown handlers and exit with the given exit code. If you want to do the exit yourself you can call the `shutdown.Shutdown()`, which does the same, but doesn't exit. Beware that you don't hold a lock when you call Exit/Shutdown.
+Finally you can call `shutdown.Exit(exitcode)` to call all exit handlers and exit your application. 
+This will wait for all locks to be released and notify all shutdown handlers and exit with the given exit code. 
+If you want to do the exit yourself you can call the `shutdown.Shutdown()`, which does the same, but doesn't exit. 
+Beware that you don't hold a lock when you call Exit/Shutdown.
 
+Do note that calling `os.Exit()` or unhandled panics **does not execute your shutdown handlers**. 
 
 Also there are some things to be mindful of:
 * Notifiers **can** be created inside shutdown code, but only for stages **following** the current. So stage 1 notifiers can create stage 2 notifiers, but if they create a stage 1 notifier this will never be called.
