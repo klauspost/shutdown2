@@ -7,9 +7,11 @@ os:
   - osx
 
 go:
-  - 1.6
-  - 1.7
-
+  - 1.6.x
+  - 1.7.x
+  - 1.8.x
+  - 1.9.x
+  - master
 
 install:
  - go get ./...
@@ -27,3 +29,8 @@ script:
  - go build examples/server-example.go
  - go build examples/simple-func.go
  
+ matrix:
+  allow_failures:
+    - go: 'master'
+  fast_finish: true 
+  
