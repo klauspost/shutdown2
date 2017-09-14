@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -950,12 +951,21 @@ func TestFnNotify(t *testing.T) {
 }
 
 func TestStatusTimerFn(t *testing.T) {
+	version := strings.Split(runtime.Version(), ".")
+	if len(version) > 2 {
+		if minor, err := strconv.Atoi(version[1]); err == nil {
+			if minor < 9 {
+				t.Skip("Skipping test due to caller changes")
+				return
+			}
+		}
+	}
 	reset()
 	FirstFn(func() {
 		time.Sleep(time.Millisecond * 100)
 	})
 	_, file, line, _ := runtime.Caller(0)
-	want := fmt.Sprintf("%s:%d", file, line-1)
+	want := fmt.Sprintf("%s:%d", file, line-3)
 
 	old := Logger
 	var b bytes.Buffer
