@@ -952,7 +952,7 @@ func TestFnNotify(t *testing.T) {
 
 func TestStatusTimerFn(t *testing.T) {
 	version := strings.Split(runtime.Version(), ".")
-	if len(version) > 2 {
+	if len(version) >= 2 {
 		if minor, err := strconv.Atoi(version[1]); err == nil {
 			if minor < 9 {
 				t.Skip("Skipping test due to caller changes")
