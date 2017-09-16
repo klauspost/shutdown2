@@ -29,8 +29,7 @@ script:
  - go build examples/server-example.go
  - go build examples/simple-func.go
  
- matrix:
+matrix:
   allow_failures:
     - go: 'master'
   fast_finish: true 
-  
