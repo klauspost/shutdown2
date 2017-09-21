@@ -87,7 +87,6 @@ func TestPreShutdown(t *testing.T) {
 	f := PreShutdown()
 	ok := false
 	l := Lock()
-	defer l()
 	go func() {
 		select {
 		case n := <-f:
