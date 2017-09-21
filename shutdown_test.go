@@ -29,6 +29,7 @@ func reset() {
 	shutdownFnQueue = [4][]fnNotify{}
 	shutdownFinished = make(chan struct{})
 	currentStage = Stage{-1}
+	onTimeOut = nil
 }
 
 func startTimer(t *testing.T) chan struct{} {
@@ -552,16 +553,16 @@ func TestTimeoutCallback(t *testing.T) {
 	Shutdown()
 	dur := time.Now().Sub(tn)
 	if dur > time.Second || dur < time.Millisecond*50 {
-		t.Fatalf("timeout time was unexpected:%v", time.Now().Sub(tn))
+		t.Errorf("timeout time was unexpected:%v (%v->%v)", dur, tn, time.Now())
 	}
 	if !Started() {
 		t.Fatal("got unexpected shutdown signal")
 	}
 	if gotStage != Stage1 {
-		t.Fatalf("want stage 1, got %+v", gotStage)
+		t.Errorf("want stage 1, got %+v", gotStage)
 	}
 	if !strings.Contains(gotCtx, testctx) {
-		t.Fatalf("want context to contain %q, got %q", testctx, gotCtx)
+		t.Errorf("want context to contain %q, got %q", testctx, gotCtx)
 	}
 }
 
@@ -654,7 +655,7 @@ func TestLockUnrelease(t *testing.T) {
 func TestLockCallback(t *testing.T) {
 	reset()
 	defer close(startTimer(t))
-	SetTimeout(time.Millisecond * 5)
+	SetTimeout(time.Millisecond * 50)
 	const testctx = "lock context"
 	var gotStage Stage
 	var gotCtx string
@@ -673,14 +674,14 @@ func TestLockCallback(t *testing.T) {
 	}
 	wg.Wait()
 	dur := time.Now().Sub(tn)
-	if dur > time.Second || dur < time.Millisecond {
-		t.Fatalf("timeout time was unexpected:%v", time.Now().Sub(tn))
+	if dur > time.Second || dur < time.Millisecond*30 {
+		t.Errorf("timeout time was unexpected:%v (%v->%v)", dur, tn, time.Now())
 	}
 	if gotStage != StagePS {
-		t.Fatalf("want stage ps, got %+v", gotStage)
+		t.Errorf("want stage ps, got %+v", gotStage)
 	}
 	if !strings.Contains(gotCtx, testctx) {
-		t.Fatalf("want context to contain %q, got %q", testctx, gotCtx)
+		t.Errorf("want context to contain %q, got %q", testctx, gotCtx)
 	}
 }
 
