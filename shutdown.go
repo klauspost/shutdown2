@@ -76,6 +76,8 @@ var (
 	srM               sync.RWMutex // Mutex for below
 	shutdownRequested = false
 	timeouts          = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
+
+	onTimeOut func(s Stage, ctx string)
 )
 
 // Notifier is a channel, that will be sent a channel
@@ -107,6 +109,14 @@ func SetLogPrinter(fn func(format string, v ...interface{})) {
 	LoggerMu.Lock()
 	Logger = logWrapper{w: fn}
 	LoggerMu.Unlock()
+}
+
+// OnTimeout allows you to get a notification if a shutdown stage times out.
+// The stage and the context of the hanging shutdown/lock function is returned.
+func OnTimeout(fn func(Stage, string)) {
+	srM.Lock()
+	onTimeOut = fn
+	srM.Unlock()
 }
 
 // SetTimeout sets maximum delay to wait for each stage to finish.
@@ -452,6 +462,11 @@ func Shutdown() {
 				case <-timeout:
 					LoggerMu.Lock()
 					if len(calledFrom) > 0 {
+						srM.RLock()
+						if onTimeOut != nil {
+							onTimeOut(Stage{n: stage}, calledFrom[i])
+						}
+						srM.RUnlock()
 						Logger.Printf(ErrorPrefix+"Notifier Timed Out: %s", calledFrom[i])
 					}
 					Logger.Printf(ErrorPrefix+"Timeout waiting to shutdown, forcing shutdown stage %v.", stage)
@@ -537,6 +552,11 @@ func Lock(ctx ...interface{}) func() {
 	go func(wg *sync.WaitGroup) {
 		select {
 		case <-timeout:
+			srM.RLock()
+			if onTimeOut != nil {
+				onTimeOut(StagePS, calledFrom)
+			}
+			srM.RUnlock()
 			if LogLockTimeouts {
 				LoggerMu.Lock()
 				Logger.Printf(WarningPrefix+"Lock expired! %s", calledFrom)

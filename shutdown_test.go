@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +45,7 @@ func startTimer(t *testing.T) chan struct{} {
 	go func() {
 		select {
 		case <-toc:
+			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic("unexpected timeout while running test")
 		case <-finished:
 			return
@@ -526,6 +529,42 @@ func TestTimeoutN(t *testing.T) {
 	}
 }
 
+func TestTimeoutCallback(t *testing.T) {
+	reset()
+	SetTimeout(time.Second * 2)
+	SetTimeoutN(Stage1, time.Millisecond*100)
+	defer close(startTimer(t))
+	f := First()
+	go func() {
+		select {
+		case <-f:
+		}
+	}()
+	const testctx = "lock context"
+	var gotStage Stage
+	var gotCtx string
+	OnTimeout(func(s Stage, ctx string) {
+		gotStage = s
+		gotCtx = ctx
+	})
+	defer OnTimeout(nil)
+	tn := time.Now()
+	Shutdown()
+	dur := time.Now().Sub(tn)
+	if dur > time.Second || dur < time.Millisecond*50 {
+		t.Fatalf("timeout time was unexpected:%v", time.Now().Sub(tn))
+	}
+	if !Started() {
+		t.Fatal("got unexpected shutdown signal")
+	}
+	if gotStage != Stage1 {
+		t.Fatalf("want stage 1, got %+v", gotStage)
+	}
+	if !strings.Contains(gotCtx, testctx) {
+		t.Fatalf("want context to contain %q, got %q", testctx, gotCtx)
+	}
+}
+
 func TestTimeoutN2(t *testing.T) {
 	reset()
 	SetTimeout(time.Millisecond * 100)
@@ -609,6 +648,39 @@ func TestLockUnrelease(t *testing.T) {
 	}
 	if !Started() {
 		t.Fatal("expected that shutdown had started")
+	}
+}
+
+func TestLockCallback(t *testing.T) {
+	reset()
+	defer close(startTimer(t))
+	SetTimeout(time.Millisecond * 100)
+	const testctx = "lock context"
+	var gotStage Stage
+	var gotCtx string
+	OnTimeout(func(s Stage, ctx string) {
+		gotStage = s
+		gotCtx = ctx
+	})
+	defer OnTimeout(nil)
+	got := Lock(testctx)
+	if got == nil {
+		t.Fatal("Unable to aquire lock")
+	}
+	tn := time.Now()
+	Shutdown()
+	dur := time.Now().Sub(tn)
+	if dur > time.Second || dur < time.Millisecond*50 {
+		t.Fatalf("timeout time was unexpected:%v", time.Now().Sub(tn))
+	}
+	if !Started() {
+		t.Fatal("expected that shutdown had started")
+	}
+	if gotStage != StagePS {
+		t.Fatalf("want stage ps, got %+v", gotStage)
+	}
+	if !strings.Contains(gotCtx, testctx) {
+		t.Fatalf("want context to contain %q, got %q", testctx, gotCtx)
 	}
 }
 
