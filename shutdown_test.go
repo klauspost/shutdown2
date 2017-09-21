@@ -636,7 +636,8 @@ func TestLock(t *testing.T) {
 func TestLockUnrelease(t *testing.T) {
 	reset()
 	defer close(startTimer(t))
-	SetTimeout(time.Millisecond * 100)
+	SetTimeout(time.Millisecond * 500)
+	SetTimeoutN(StagePS, time.Millisecond*100)
 	got := Lock()
 	if got == nil {
 		t.Fatal("Unable to aquire lock")
