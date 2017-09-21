@@ -534,13 +534,6 @@ func TestTimeoutCallback(t *testing.T) {
 	SetTimeout(time.Second * 2)
 	SetTimeoutN(Stage1, time.Millisecond*100)
 	defer close(startTimer(t))
-	f := First()
-	go func() {
-		select {
-		case <-f:
-		}
-	}()
-	const testctx = "lock context"
 	var gotStage Stage
 	var gotCtx string
 	OnTimeout(func(s Stage, ctx string) {
@@ -548,6 +541,13 @@ func TestTimeoutCallback(t *testing.T) {
 		gotCtx = ctx
 	})
 	defer OnTimeout(nil)
+	const testctx = "lock context"
+	f := First(testctx)
+	go func() {
+		select {
+		case <-f:
+		}
+	}()
 	tn := time.Now()
 	Shutdown()
 	dur := time.Now().Sub(tn)
@@ -654,27 +654,27 @@ func TestLockUnrelease(t *testing.T) {
 func TestLockCallback(t *testing.T) {
 	reset()
 	defer close(startTimer(t))
-	SetTimeout(time.Millisecond * 100)
+	SetTimeout(time.Millisecond * 5)
 	const testctx = "lock context"
 	var gotStage Stage
 	var gotCtx string
+	var wg sync.WaitGroup
+	wg.Add(1)
 	OnTimeout(func(s Stage, ctx string) {
 		gotStage = s
 		gotCtx = ctx
+		wg.Done()
 	})
 	defer OnTimeout(nil)
+	tn := time.Now()
 	got := Lock(testctx)
 	if got == nil {
 		t.Fatal("Unable to aquire lock")
 	}
-	tn := time.Now()
-	Shutdown()
+	wg.Wait()
 	dur := time.Now().Sub(tn)
-	if dur > time.Second || dur < time.Millisecond*50 {
+	if dur > time.Second || dur < time.Millisecond {
 		t.Fatalf("timeout time was unexpected:%v", time.Now().Sub(tn))
-	}
-	if !Started() {
-		t.Fatal("expected that shutdown had started")
 	}
 	if gotStage != StagePS {
 		t.Fatalf("want stage ps, got %+v", gotStage)
