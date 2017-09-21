@@ -87,6 +87,7 @@ func TestPreShutdown(t *testing.T) {
 	f := PreShutdown()
 	ok := false
 	l := Lock()
+	defer l()
 	go func() {
 		select {
 		case n := <-f:
@@ -642,6 +643,7 @@ func TestLockUnrelease(t *testing.T) {
 	if got == nil {
 		t.Fatal("Unable to aquire lock")
 	}
+	defer got()
 	tn := time.Now()
 	Shutdown()
 	dur := time.Now().Sub(tn)
