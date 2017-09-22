@@ -78,6 +78,7 @@ var (
 	timeouts          = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
 
 	onTimeOut func(s Stage, ctx string)
+	wg        = &sync.WaitGroup{}
 )
 
 // Notifier is a channel, that will be sent a channel
@@ -397,6 +398,7 @@ func Shutdown() {
 	}
 	shutdownRequested = true
 	lwg := wg
+	onTimeOutFn := onTimeOut
 	srM.Unlock()
 
 	// Add a pre-shutdown function that waits for all locks to be released.
@@ -463,8 +465,8 @@ func Shutdown() {
 					LoggerMu.Lock()
 					if len(calledFrom) > 0 {
 						srM.RLock()
-						if onTimeOut != nil {
-							onTimeOut(Stage{n: stage}, calledFrom[i])
+						if onTimeOutFn != nil {
+							onTimeOutFn(Stage{n: stage}, calledFrom[i])
 						}
 						srM.RUnlock()
 						Logger.Printf(ErrorPrefix+"Notifier Timed Out: %s", calledFrom[i])
@@ -498,8 +500,6 @@ func Started() bool {
 	srM.RUnlock()
 	return started
 }
-
-var wg = &sync.WaitGroup{}
 
 // Wait will wait until shutdown has finished.
 // This can be used to keep a main function from exiting
@@ -535,6 +535,7 @@ func Lock(ctx ...interface{}) func() {
 		return nil
 	}
 	wg.Add(1)
+	onTimeOutFn := onTimeOut
 	srM.RUnlock()
 	var release = make(chan struct{}, 0)
 	var timeout = time.After(timeouts[0])
@@ -552,11 +553,9 @@ func Lock(ctx ...interface{}) func() {
 	go func(wg *sync.WaitGroup) {
 		select {
 		case <-timeout:
-			srM.RLock()
-			if onTimeOut != nil {
-				onTimeOut(StagePS, calledFrom)
+			if onTimeOutFn != nil {
+				onTimeOutFn(StagePS, calledFrom)
 			}
-			srM.RUnlock()
 			if LogLockTimeouts {
 				LoggerMu.Lock()
 				Logger.Printf(WarningPrefix+"Lock expired! %s", calledFrom)
