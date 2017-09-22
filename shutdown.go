@@ -76,6 +76,9 @@ var (
 	srM               sync.RWMutex // Mutex for below
 	shutdownRequested = false
 	timeouts          = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
+
+	onTimeOut func(s Stage, ctx string)
+	wg        = &sync.WaitGroup{}
 )
 
 // Notifier is a channel, that will be sent a channel
@@ -107,6 +110,14 @@ func SetLogPrinter(fn func(format string, v ...interface{})) {
 	LoggerMu.Lock()
 	Logger = logWrapper{w: fn}
 	LoggerMu.Unlock()
+}
+
+// OnTimeout allows you to get a notification if a shutdown stage times out.
+// The stage and the context of the hanging shutdown/lock function is returned.
+func OnTimeout(fn func(Stage, string)) {
+	srM.Lock()
+	onTimeOut = fn
+	srM.Unlock()
 }
 
 // SetTimeout sets maximum delay to wait for each stage to finish.
@@ -387,6 +398,7 @@ func Shutdown() {
 	}
 	shutdownRequested = true
 	lwg := wg
+	onTimeOutFn := onTimeOut
 	srM.Unlock()
 
 	// Add a pre-shutdown function that waits for all locks to be released.
@@ -452,6 +464,11 @@ func Shutdown() {
 				case <-timeout:
 					LoggerMu.Lock()
 					if len(calledFrom) > 0 {
+						srM.RLock()
+						if onTimeOutFn != nil {
+							onTimeOutFn(Stage{n: stage}, calledFrom[i])
+						}
+						srM.RUnlock()
 						Logger.Printf(ErrorPrefix+"Notifier Timed Out: %s", calledFrom[i])
 					}
 					Logger.Printf(ErrorPrefix+"Timeout waiting to shutdown, forcing shutdown stage %v.", stage)
@@ -483,8 +500,6 @@ func Started() bool {
 	srM.RUnlock()
 	return started
 }
-
-var wg = &sync.WaitGroup{}
 
 // Wait will wait until shutdown has finished.
 // This can be used to keep a main function from exiting
@@ -520,6 +535,7 @@ func Lock(ctx ...interface{}) func() {
 		return nil
 	}
 	wg.Add(1)
+	onTimeOutFn := onTimeOut
 	srM.RUnlock()
 	var release = make(chan struct{}, 0)
 	var timeout = time.After(timeouts[0])
@@ -537,6 +553,9 @@ func Lock(ctx ...interface{}) func() {
 	go func(wg *sync.WaitGroup) {
 		select {
 		case <-timeout:
+			if onTimeOutFn != nil {
+				onTimeOutFn(StagePS, calledFrom)
+			}
 			if LogLockTimeouts {
 				LoggerMu.Lock()
 				Logger.Printf(WarningPrefix+"Lock expired! %s", calledFrom)
