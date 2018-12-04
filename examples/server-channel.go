@@ -17,7 +17,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/klauspost/shutdown2"
+	shutdown "github.com/klauspost/shutdown2"
 )
 
 func main() {

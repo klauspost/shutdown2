@@ -9,7 +9,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/klauspost/shutdown2"
+	shutdown "github.com/klauspost/shutdown2"
 )
 
 // This example shows a server that has logging to a file

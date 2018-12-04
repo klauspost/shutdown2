@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/klauspost/shutdown2"
+	shutdown "github.com/klauspost/shutdown2"
 )
 
 // This example shows a server that has message processing in a separate goroutine
