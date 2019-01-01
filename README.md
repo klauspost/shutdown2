@@ -37,43 +37,6 @@ If a timeout is exceeded the next shutdown stage will be initiated regardless.
 
 Finally, you can always cancel a notifier, which will remove it from the shutdown queue.
 
-# changes
-
-#### nil notifiers
-
-It was tricky to detect cases where shutdown had started when you requested notifiers.
- 
-To help for that common case, the library now *returns a nil Notifier* if shutdown has already
-reached the stage you are requesting a notifier for. 
-
-This is backwards compatible, but makes it much easier to test for such a case:
- 
-```Go
-    f := shutdown.First()
-    if f == nil {
-        // Already shutting down.
-        return
-    }
-```
-
-#### "context" support
-
-Support for the [context](https://golang.org/pkg/context/) package has been added. 
-This allows you to easily wrap shutdown cancellation to your contexts using `shutdown.CancelCtx(parent Context)`.
-
-This functions equivalent to calling [`context.WithCancel`](https://golang.org/pkg/context/#WithCancel) and
-you must release resources the same way, by calling the returned 
-[CancelFunc](https://golang.org/pkg/context/#CancelFunc).
-
-For legacy codebases we will seamlessly integrate with 
-[golang.org/x/net/context](https://godoc.org/golang.org/x/net/context).
-Be sure to update to the latest version using `go get -u golang.org/x/net/context`, 
-since Go 1.7 compatibility is a recent update. 
-
-#### v2
-This is version 2 of the shutdown package. It contains some breaking changes to simplify the use of shutdown functions.
-
-
 # usage
 
 First get the libary with `go get -u github.com/klauspost/shutdown2`, 
@@ -112,9 +75,6 @@ All functions in one stage are executed in parallel.
 The package will wait for all functions in one stage to have finished before moving on to the next one.  
 So your code cannot rely on any particular order of execution inside a single stage, 
 but you are guaranteed that the First stage is finished before any functions from stage two are executed.
-
-You can send a parameter to your function, which is delivered as an `interface{}`. 
-This way you can re-use the same function for similar tasks. See `simple-func.go` in the examples folder.
 
 This example above uses functions that are called, but you can also request channels that are notified on shutdown. 
 This allows you do have shutdown handling in blocked select statements like this:
@@ -240,6 +200,38 @@ Also there are some things to be mindful of:
 
 When you design with this do take care that this library is for **controlled** shutdown of your application. If you application crashes no shutdown handlers are run, so panics will still be fatal. You can of course still call the `Shutdown()` function if you recover a panic, but the library does nothing like this automatically.
 
+#### nil notifiers
+
+It was tricky to detect cases where shutdown had started when you requested notifiers.
+ 
+To help for that common case, the library now *returns a nil Notifier* if shutdown has already
+reached the stage you are requesting a notifier for. 
+
+This is backwards compatible, but makes it much easier to test for such a case:
+ 
+```Go
+    f := shutdown.First()
+    if f == nil {
+        // Already shutting down.
+        return
+    }
+```
+
+#### "context" support
+
+Support for the [context](https://golang.org/pkg/context/) package has been added. 
+This allows you to easily wrap shutdown cancellation to your contexts using `shutdown.CancelCtx(parent Context)`.
+
+This functions equivalent to calling [`context.WithCancel`](https://golang.org/pkg/context/#WithCancel) and
+you must release resources the same way, by calling the returned 
+[CancelFunc](https://golang.org/pkg/context/#CancelFunc).
+
+For legacy codebases we will seamlessly integrate with 
+[golang.org/x/net/context](https://godoc.org/golang.org/x/net/context).
+Be sure to update to the latest version using `go get -u golang.org/x/net/context`, 
+since Go 1.7 compatibility is a recent update. 
+
+
 ## logging
 
 By default logging is done to the standard log package. You can replace the [Logger](https://godoc.org/github.com/klauspost/shutdown2#pkg-variables) with your own before you start using the package. You can also send a "Printf" style function to the [`SetLogPrinter`](https://godoc.org/github.com/klauspost/shutdown2#SetLogPrinter). This will allow you to easy hook up things like `(*testing.T).Logf` or specific loggers to intercept output.
@@ -248,7 +240,7 @@ You can set a custom `WarningPrefix` and `ErrorPrefix` in the [package variables
 
 When you keep [`LogLockTimeout`](https://godoc.org/github.com/klauspost/shutdown2#pkg-variables) enabled, you will also get detailed information about your lock timeouts, including a `file:line` indication where the notifier/lock was created. It is recommended to keep this enabled for easier debugging.
 
-If a line number isn't enough information you can pass something that can identify your `shutdown.FirstFn(func() {select{}}, "Some Context")`, will print "Some Context" when the function fails to return. The context is simply `fmt.Printf("%v", ctx)` when the function is created, so you can pass arbitrary objects.
+If a line number isn't enough information you can pass something that can identify your `shutdown.FirstFn(func() {select{}}, "Some Context")` or `shutdown.First("Some Context")`, will print "Some Context" when the function fails to return or the notifier isn't closed. The context is simply `fmt.Printf("%v", ctx)` when the function is created, so you can pass arbitrary objects.
 
 You can use `SetLogPrinter(func(string, ...interface{}){})` to disable logging.
 
