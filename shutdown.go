@@ -73,9 +73,10 @@ var (
 	shutdownFinished = make(chan struct{}, 0) // Closed when shutdown has finished
 	currentStage     = Stage{-1}
 
-	srM               sync.RWMutex // Mutex for below
-	shutdownRequested = false
-	timeouts          = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
+	srM                 sync.RWMutex // Mutex for below
+	shutdownRequested   = false
+	shutdownRequestedCh = make(chan struct{})
+	timeouts            = [4]time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
 
 	onTimeOut func(s Stage, ctx string)
 	wg        = &sync.WaitGroup{}
@@ -397,6 +398,7 @@ func Shutdown() {
 		return
 	}
 	shutdownRequested = true
+	close(shutdownRequestedCh)
 	lwg := wg
 	onTimeOutFn := onTimeOut
 	srM.Unlock()
@@ -499,6 +501,11 @@ func Started() bool {
 	started := shutdownRequested
 	srM.RUnlock()
 	return started
+}
+
+// StartedCh returns a channel that is closed once shutdown has started.
+func StartedCh() <-chan struct{} {
+	return shutdownRequestedCh
 }
 
 // Wait will wait until shutdown has finished.
