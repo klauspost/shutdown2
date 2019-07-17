@@ -396,9 +396,10 @@ func Shutdown() {
 		// Wait till shutdown finished
 		<-shutdownFinished
 		return
+	} else {
+		close(shutdownRequestedCh)
 	}
 	shutdownRequested = true
-	close(shutdownRequestedCh)
 	lwg := wg
 	onTimeOutFn := onTimeOut
 	srM.Unlock()
