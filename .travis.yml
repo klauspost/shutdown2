@@ -1,26 +1,23 @@
 language: go
 
-sudo: false
-
 os:
   - linux
   - osx
 
 go:
-  - 1.9.x
-  - 1.10.x
-  - 1.11.x
+  - 1.13.x
+  - 1.14.x
+  - 1.15.x
   - master
+
+env:
+  - GO111MODULE=off
 
 install:
  - go get ./...
- - go get -u github.com/golang/lint/golint
- - go get -u golang.org/x/tools/cmd/goimports
- - go get -u golang.org/x/net/context
 
 script: 
  - go vet ./...
- - diff <(goimports -d .) <(printf "")
  - diff <(golint ./...) <(printf "")
  - go test -v -cpu=1,2,4 .
  - go test -v -cpu=1,2,4 -short -race .

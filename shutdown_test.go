@@ -1400,6 +1400,9 @@ func ExampleWait() {
 	// ignore this reset, for test purposes only
 	reset()
 
+	// Remove logging
+	SetLogPrinter(func(format string, v ...interface{}) {})
+
 	// Wait for the jobs above to finish
 	go func() {
 		wg.Wait()
