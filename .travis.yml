@@ -15,6 +15,7 @@ env:
 
 install:
  - go get ./...
+ - go get golang.org/x/lint/golint
 
 script: 
  - go vet ./...
