@@ -713,31 +713,36 @@ func TestOrder(t *testing.T) {
 	}
 
 	var ok0, ok1, ok2, ok3 bool
+	var failure string
 	go func() {
 		for {
 			select {
 			//t0 must be first
 			case n := <-t0:
 				if ok0 || ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					failure = fmt.Sprintln("t0 unexpected order", ok0, ok1, ok2, ok3)
+					continue
 				}
 				ok0 = true
 				close(n)
 			case n := <-t1:
 				if !ok0 || ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					failure = fmt.Sprintln("t1 unexpected order", ok0, ok1, ok2, ok3)
+					continue
 				}
 				ok1 = true
 				close(n)
 			case n := <-t2:
 				if !ok0 || !ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					failure = fmt.Sprintln("t2 unexpected order", ok0, ok1, ok2, ok3)
+					continue
 				}
 				ok2 = true
 				close(n)
 			case n := <-t3:
 				if !ok0 || !ok1 || !ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					failure = fmt.Sprintln("t3 unexpected order", ok0, ok1, ok2, ok3)
+					return
 				}
 				ok3 = true
 				close(n)
@@ -750,9 +755,13 @@ func TestOrder(t *testing.T) {
 	}
 
 	Shutdown()
+	if failure != "" {
+		t.Fatal(failure)
+	}
 	if !ok0 || !ok1 || !ok2 || !ok3 {
 		t.Fatal("did not get expected shutdown signal", ok0, ok1, ok2, ok3)
 	}
+
 }
 
 func TestRecursive(t *testing.T) {
