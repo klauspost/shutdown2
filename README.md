@@ -8,12 +8,7 @@ This will enable you to save data, notify other services that your application i
 * Package home: https://github.com/klauspost/shutdown2
 * Godoc: https://godoc.org/github.com/klauspost/shutdown2
 
-[![GoDoc][1]][2] [![Build Status][3]][4]
-
-[1]: https://godoc.org/github.com/klauspost/shutdown2?status.svg
-[2]: https://godoc.org/github.com/klauspost/shutdown2
-[3]: https://travis-ci.org/klauspost/shutdown2.svg
-[4]: https://travis-ci.org/klauspost/shutdown2
+[![Go Reference](https://pkg.go.dev/badge/github.com/klauspost/shutdown2.svg)](https://pkg.go.dev/github.com/klauspost/shutdown2)
 
 # concept
 Managing shutdowns can be very tricky, often leading to races, crashes and strange behavior.

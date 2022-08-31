@@ -4,7 +4,7 @@
 //
 // The package will enable you to get notifications for your application and handle the shutdown process.
 //
-// See more information about the how to use it in the README.md file
+// # See more information about the how to use it in the README.md file
 //
 // Package home: https://github.com/klauspost/shutdown2
 package shutdown
@@ -367,7 +367,9 @@ func onShutdown(prio, depth int, ctx []interface{}) iNotifier {
 // OnSignal will start the shutdown when any of the given signals arrive
 //
 // A good shutdown default is
-//    shutdown.OnSignal(0, os.Interrupt, syscall.SIGTERM)
+//
+//	shutdown.OnSignal(0, os.Interrupt, syscall.SIGTERM)
+//
 // which will do shutdown on Ctrl+C and when the program is terminated.
 func OnSignal(exitCode int, sig ...os.Signal) {
 	// capture signal and shut down.
