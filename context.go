@@ -1,7 +1,5 @@
 // Copyright (c) 2015 Klaus Post, released under MIT License. See LICENSE file.
 
-// +build go1.7
-
 package shutdown
 
 import "context"

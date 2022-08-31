@@ -30,6 +30,7 @@ func reset() {
 	shutdownFnQueue = [4][]fnNotify{}
 	shutdownFinished = make(chan struct{})
 	currentStage = Stage{-1}
+	LogLockTimeouts = true
 	onTimeOut = nil
 }
 
@@ -50,8 +51,9 @@ func startTimer(t *testing.T) chan struct{} {
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic("unexpected timeout while running test")
 		case <-finished:
+			// Remove logging
+			SetLogPrinter(func(format string, v ...interface{}) {})
 			return
-
 		}
 	}()
 	return finished
@@ -333,6 +335,9 @@ func TestContextLog(t *testing.T) {
 	}
 	if !strings.Contains(logged, fmt.Sprintf("%v", txtL)) {
 		t.Errorf("Log should contain %v", txtL)
+	}
+	if t.Failed() {
+		t.Logf("Log ACTUALLY contains: %s", logged)
 	}
 }
 
@@ -713,31 +718,47 @@ func TestOrder(t *testing.T) {
 	}
 
 	var ok0, ok1, ok2, ok3 bool
+	var failure error
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			//t0 must be first
 			case n := <-t0:
 				if ok0 || ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t0: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok0 = true
 				close(n)
 			case n := <-t1:
 				if !ok0 || ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t1: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok1 = true
 				close(n)
 			case n := <-t2:
 				if !ok0 || !ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t2: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok2 = true
 				close(n)
 			case n := <-t3:
 				if !ok0 || !ok1 || !ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t3: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok3 = true
 				close(n)
@@ -750,8 +771,12 @@ func TestOrder(t *testing.T) {
 	}
 
 	Shutdown()
+	wg.Wait()
 	if !ok0 || !ok1 || !ok2 || !ok3 {
 		t.Fatal("did not get expected shutdown signal", ok0, ok1, ok2, ok3)
+	}
+	if failure != nil {
+		t.Fatal(failure)
 	}
 }
 
@@ -1038,19 +1063,18 @@ func TestStatusTimerFn(t *testing.T) {
 	}
 	reset()
 	FirstFn(func() {
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 500)
 	})
 	_, file, line, _ := runtime.Caller(0)
 	want := fmt.Sprintf("%s:%d", file, line-3)
 
-	old := Logger
 	var b bytes.Buffer
 	SetLogPrinter(func(f string, val ...interface{}) {
 		b.WriteString(fmt.Sprintf(f+"\n", val...))
 	})
 	StatusTimer = time.Millisecond
 	Shutdown()
-	Logger = old
+	SetLogPrinter(func(format string, v ...interface{}) {})
 	StatusTimer = time.Minute
 	if !strings.Contains(b.String(), want) {
 		t.Errorf("Expected logger to contain trace to %s, got: %v", want, b.String())
