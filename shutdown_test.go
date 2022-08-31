@@ -30,6 +30,7 @@ func reset() {
 	shutdownFnQueue = [4][]fnNotify{}
 	shutdownFinished = make(chan struct{})
 	currentStage = Stage{-1}
+	LogLockTimeouts = true
 	onTimeOut = nil
 }
 
@@ -334,6 +335,9 @@ func TestContextLog(t *testing.T) {
 	}
 	if !strings.Contains(logged, fmt.Sprintf("%v", txtL)) {
 		t.Errorf("Log should contain %v", txtL)
+	}
+	if t.Failed() {
+		t.Logf("Log ACTUALLY contains: %s", logged)
 	}
 }
 
@@ -1059,7 +1063,7 @@ func TestStatusTimerFn(t *testing.T) {
 	}
 	reset()
 	FirstFn(func() {
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 500)
 	})
 	_, file, line, _ := runtime.Caller(0)
 	want := fmt.Sprintf("%s:%d", file, line-3)
