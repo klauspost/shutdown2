@@ -713,31 +713,47 @@ func TestOrder(t *testing.T) {
 	}
 
 	var ok0, ok1, ok2, ok3 bool
+	var failure error
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			//t0 must be first
 			case n := <-t0:
 				if ok0 || ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t0: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok0 = true
 				close(n)
 			case n := <-t1:
 				if !ok0 || ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t1: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok1 = true
 				close(n)
 			case n := <-t2:
 				if !ok0 || !ok1 || ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t2: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok2 = true
 				close(n)
 			case n := <-t3:
 				if !ok0 || !ok1 || !ok2 || ok3 {
-					t.Fatal("unexpected order", ok0, ok1, ok2, ok3)
+					if failure == nil {
+						failure = fmt.Errorf("t3: unexpected order %v %v %v %v", ok0, ok1, ok2, ok3)
+					}
+					continue
 				}
 				ok3 = true
 				close(n)
@@ -750,8 +766,12 @@ func TestOrder(t *testing.T) {
 	}
 
 	Shutdown()
+	wg.Wait()
 	if !ok0 || !ok1 || !ok2 || !ok3 {
 		t.Fatal("did not get expected shutdown signal", ok0, ok1, ok2, ok3)
+	}
+	if failure != nil {
+		t.Fatal(failure)
 	}
 }
 
