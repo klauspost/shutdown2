@@ -50,8 +50,9 @@ func startTimer(t *testing.T) chan struct{} {
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic("unexpected timeout while running test")
 		case <-finished:
+			// Remove logging
+			SetLogPrinter(func(format string, v ...interface{}) {})
 			return
-
 		}
 	}()
 	return finished
@@ -1063,14 +1064,13 @@ func TestStatusTimerFn(t *testing.T) {
 	_, file, line, _ := runtime.Caller(0)
 	want := fmt.Sprintf("%s:%d", file, line-3)
 
-	old := Logger
 	var b bytes.Buffer
 	SetLogPrinter(func(f string, val ...interface{}) {
 		b.WriteString(fmt.Sprintf(f+"\n", val...))
 	})
 	StatusTimer = time.Millisecond
 	Shutdown()
-	Logger = old
+	SetLogPrinter(func(format string, v ...interface{}) {})
 	StatusTimer = time.Minute
 	if !strings.Contains(b.String(), want) {
 		t.Errorf("Expected logger to contain trace to %s, got: %v", want, b.String())
